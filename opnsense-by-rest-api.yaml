@@ -190,10 +190,13 @@ zabbix_export:
             key: opns.raw.load
           triggers:
             - uuid: 7c04d91bc29c478cb2b87e1834a742cc
-              expression: 'min(/OPNsense by REST API/opns.cpu.load,5m)>{$OPNS.CPU.LOAD.MAX}'
+              expression: 'min(/OPNsense by REST API/opns.cpu.load,#3)>{$OPNS.CPU.LOAD.MAX}'
               name: 'CPU load is high'
               opdata: '{ITEM.LASTVALUE}'
               priority: WARNING
+              dependencies:
+                - name: 'Load per core is high'
+                  expression: 'avg(/OPNsense by REST API/opns.system.load.percore,15m)>{$OPNS.LOAD.PERCORE.WARN}'
         - uuid: 2e3316ee08c945fbb0ce4e5b497c72a2
           name: 'Firewall states current'
           type: DEPENDENT
@@ -4487,10 +4490,10 @@ zabbix_export:
                   value: '{#SERVICE.ID}'
               trigger_prototypes:
                 - uuid: da4a4099f5d24feeaea0a84c3cfd28e5
-                  expression: min(/OPNsense by REST API/opns.service.running[{#SERVICE.ID}],5m)=0
+                  expression: min(/OPNsense by REST API/opns.service.running[{#SERVICE.ID}],#2)=0
                   name: Service {#SERVICE.DESCRIPTION} is not running
                   priority: AVERAGE
-                  description: The service has been down for five minutes. Add it to {$OPNS.SERVICE.ID.NOT_MATCHES} if it is not supposed to run on this firewall.
+                  description: The service was not running in two consecutive checks, which is ten minutes at the default interval. A single missed check, for example during a reload, does not raise the problem. Add it to {$OPNS.SERVICE.ID.NOT_MATCHES} if it is not supposed to run on this firewall.
                   manual_close: 'YES'
                   tags:
                     - tag: scope
