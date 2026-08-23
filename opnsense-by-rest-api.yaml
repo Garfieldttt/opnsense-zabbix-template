@@ -2831,7 +2831,7 @@ zabbix_export:
               name: 'FS [{#FSNAME}]: Space: Used, in %'
               type: DEPENDENT
               key: 'opns.disk.size[{#FSNAME},pused]'
-              units: B
+              units: '%'
               preprocessing:
                 - type: JSONPATH
                   parameters:

@@ -278,6 +278,10 @@ firewall with nothing pending answers 2 and "No pending messages". The other cod
 observed here, so the trigger fires on anything other than 2 rather than claiming to know
 them, and the message is carried next to it as text.
 
+**Filesystem usage is a percentage.** The item reads `used_pct` and is declared with `%`. In
+the template this grew out of it carried `B`, which made Zabbix format 34 percent as
+"34.28 B" in Latest data and on the dashboard.
+
 **Raw master items store nothing.** Every master carries `history: 0`. A dependent item is
 fed from the value as it arrives, not from the stored history, so the chain works without it,
 and nothing else reads a raw payload. Measured on one small firewall with this template
