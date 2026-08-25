@@ -324,3 +324,13 @@ not been seen is a real tunnel carrying a real client.
 
 MIT. The template is derived from the Zabbix community template `OPNsense by HTTP-JSON`
 (MIT, Copyright 2021 Zabbix), with the greater part of the current content added on top.
+
+##Screenshots:
+<img width="3537" height="2151" alt="image" src="https://github.com/user-attachments/assets/dbf56df3-f940-4e6b-a916-604d9cc8a661" />
+<img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/ab65ad58-a1a5-4b29-84f4-76d1701e3217" />
+<img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/25229450-53b2-4c92-982d-e1354d8a7ed5" />
+<img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/273514d2-af03-47c1-8fa0-9fd7b6af1ab2" />
+<img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/ceee70d7-6d14-4b1d-b90f-b42fcdac2bd4" />
+
+
+
