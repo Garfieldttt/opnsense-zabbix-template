@@ -4351,19 +4351,21 @@ zabbix_export:
               delay: '0'
               valuemap:
                 name: Link status
-              description: 'Derived from the BSD interface flags: bit 0 is UP, the administrative state, and bit 6 is RUNNING, which is set once the interface has a usable link. Both must be set for the interface to count as up.'
+              description: 'Link state the kernel reports for the interface, 0 down, 1 up, 2 unknown. Interfaces without the LINKSTATE capability, such as pppoe0 and other point to point devices, never report a link and read as unknown rather than down; the down trigger leaves them alone, and the gateway triggers cover a lost PPPoE session.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
                     - $[?(@.device == "{#IFNAME}")]['link state'].first()
-                - type: STR_REPLACE
+                - type: JAVASCRIPT
                   parameters:
-                    - '1'
-                    - '0'
-                - type: STR_REPLACE
-                  parameters:
-                    - '2'
-                    - '1'
+                    - |
+                      // FreeBSD link_state: 0 LINK_STATE_UNKNOWN, 1 LINK_STATE_DOWN, 2 LINK_STATE_UP.
+                      // Mapped so that 0 keeps meaning down for the trigger and existing history.
+                      switch (String(value)) {
+                          case '1': return 0;
+                          case '2': return 1;
+                          default: return 2;
+                      }
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
@@ -5983,6 +5985,12 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.1.threshold
                       value: '1'
+                    - type: STRING
+                      name: thresholds.2.color
+                      value: 9E9E9E
+                    - type: STRING
+                      name: thresholds.2.threshold
+                      value: '2'
                 - type: svggraph
                   name: Traffic
                   'y': '4'
@@ -7805,6 +7813,8 @@ zabbix_export:
               newvalue: Down
             - value: '1'
               newvalue: Up
+            - value: '2'
+              newvalue: Unknown
         - uuid: 503105673fd1482cb9f042bf471a1f13
           name: NTP sync state
           mappings:
