@@ -1950,6 +1950,122 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: notice
+        - uuid: 9d6cd9226ad049be962b3bb9bb569723
+          name: 'RAW Firewall rules'
+          type: HTTP_AGENT
+          key: opns.fw.rules.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Master item. Firewall rules as the rule editor lists them, from firewall/filter/search_rule, reduced to the rules a person wrote. Rules OPNsense generates itself (anti lockout, default deny, plugin rules) are left out; rules from the legacy editor still pending migration are kept. Needs the Firewall: Rules privilege, which also permits editing rules.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/firewall/filter/search_rule
+          tags:
+            - tag: component
+              value: raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Generated rules carry is_automatic. Legacy user rules carry it too, but point at the
+                  // migration page, which tells them apart from the rules OPNsense writes itself.
+                  var rows = JSON.parse(value).rows || [], total = 0, names = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      var r = rows[i];
+                      if (r.is_automatic && r.ref !== 'ui/firewall/migration') { continue; }
+                      total++;
+                      if (String(r.enabled) !== '1') {
+                          var iface = r['interface'] ? ' [' + r['interface'] + ']' : '';
+                          names.push((r.description || r.uuid) + iface);
+                      }
+                  }
+                  names.sort();
+                  return JSON.stringify({total: total, disabled: names.length, names: names.join('\n')});
+        - uuid: 0319d2355c124c2e9de08290a7b9c41b
+          name: 'Firewall rules: configured'
+          type: DEPENDENT
+          key: opns.fw.rules.configured
+          delay: '0'
+          description: 'Rules written by a person, enabled or not. Rules OPNsense generates are not counted.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.fw.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 399fd4b077e6417fb98f70396eafdf3f
+          name: 'Firewall rules: disabled'
+          type: DEPENDENT
+          key: opns.fw.rules.disabled
+          delay: '0'
+          description: 'Rules written by a person that are switched off. A disabled rule is not loaded into pf, so it neither passes nor blocks anything.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.disabled
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.fw.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+          triggers:
+            - uuid: 8f7ed0acf4284cc988709114ff329873
+              expression: 'change(/OPNsense by REST API/opns.fw.rules.disabled)>0 and length(last(/OPNsense by REST API/opns.fw.rules.disabled.list))>=0'
+              name: 'A firewall rule was disabled'
+              opdata: '{ITEM.LASTVALUE1} disabled'
+              priority: WARNING
+              description: |
+                More firewall rules are switched off than before. A disabled block rule silently lets traffic through, so check that this was intended.
+                Disabled now:
+                {ITEM.LASTVALUE2}
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+            - uuid: 1994761ee5df41048726b2b1eab953e3
+              expression: 'change(/OPNsense by REST API/opns.fw.rules.disabled)<0'
+              name: 'Fewer firewall rules are disabled'
+              opdata: '{ITEM.LASTVALUE1} disabled'
+              priority: INFO
+              description: 'A disabled rule was switched back on or removed. Switching on an old pass rule can open access that was closed on purpose.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 6af48b9409bc4d15bcdcdd845b4c77ed
+          name: 'Firewall rules: disabled list'
+          type: DEPENDENT
+          key: opns.fw.rules.disabled.list
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          description: 'The disabled rules by description, with the interfaces they apply to, one per line.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.names
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.fw.rules.raw
+          tags:
+            - tag: component
+              value: firewall
         - uuid: 880f175ff8e14a579d38138783e445df
           name: 'OPNsense: pf ruleset (raw)'
           type: HTTP_AGENT
