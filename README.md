@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+131 items, 16 discovery rules with 75 item prototypes, 59 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -40,6 +40,7 @@ with 9 pages.
 | pf state table and source tracking, with their limits | `diagnostics/firewall/pf_states`, `pf_statistics/info`, `pf_statistics/memory` |
 | pf counters, SYN floods, malformed packets | `diagnostics/firewall/pf_statistics/info` |
 | Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
+| Failed Web GUI and SSH logins | `diagnostics/log/core/audit` |
 | pf table entries against the configured ceiling | `firewall/alias/get_table_size` |
 | Blocked share of the firewall log | `diagnostics/firewall/stats?group_by=action` |
 | Gateways, address, status, round trip time, loss, deviation | `routes/gateway/status` |
@@ -114,6 +115,7 @@ read.
 | System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, `api/core/firmware/*` also covers reboot, poweroff, install and remove |
 | Services: Unbound | `page-services-unbound` | resolver statistics | **no**, `api/unbound/*` covers the whole resolver configuration |
 | System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates |
+| Diagnostics: Logs: System | `page-diagnostics-logs-system` | failed login counters | **no**, it also covers the system, boot, configd and web server logs |
 | Services: DHCP: Kea(v4) and Kea(v6) | `page-dhcp-kea-v4`, `page-dhcp-kea-v6` | DHCP lease counters | **no**, the patterns cover the Kea configuration and service control |
 
 Leaving one out costs exactly the items it feeds, which then stay unsupported, and nothing
@@ -152,6 +154,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.LOAD.PERCORE.WARN}` | `1` | Five minute load per core, 1 means the cores are exactly saturated |
 | `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Memory utilisation counting as high |
 | `{$OPNS.MBUF.UTIL.WARN}` | `80` | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.AUTH.FAIL.MAX}` | `5` | Failed Web GUI and SSH logins within five minutes counting as repeated |
 | `{$OPNS.SWAP.UTIL.WARN}` | `5` | Swap in use counting as a problem. A firewall should not swap at all, so this is deliberately low. Per device through macro context |
 | `{$OPNS.TEMP.CRIT}` | `80` | Sensor temperature in degrees Celsius. Per sensor through context, for example `{$OPNS.TEMP.CRIT:"dev.cpu.0.temperature"}` |
 | `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Filesystem utilisation, warning |
@@ -210,7 +213,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+59 in total: 2 Disaster, 13 High, 13 Average, 22 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +299,16 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**Failed logins are counted in the audit log.** The log search matches every word of a
+phrase and nothing else, so the Web GUI, unknown SSH users and wrong SSH passwords are three
+searches. The log API stops counting matches just past the page it was asked for, so the items
+ask for a page far beyond the end: the count then covers every retained log file while no rows
+come back. Each item keeps the growth since the previous poll; when old log files are rotated
+away the number drops, and that reading is discarded. One SSH attempt with an unknown user logs
+two or more lines, so the count is of log lines, not attempts. API calls with a wrong key are
+not logged by OPNsense at all. Blocking the sources is left to CrowdSec or the built in lockout;
+the template reports that someone is trying.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.

@@ -2097,6 +2097,110 @@ zabbix_export:
           tags:
             - tag: component
               value: firewall
+        - uuid: f3204937c0494f7caac2bb32e15802e9
+          name: 'Failed logins: Web GUI'
+          type: HTTP_AGENT
+          key: opns.auth.failures.webgui
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Web GUI logins rejected for a wrong user name or password. Counts new matching lines in the audit log since the previous poll; needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=authentication+error+for'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: security
+        - uuid: 5896988631dc41329f7ae19288320389
+          name: 'Failed logins: SSH unknown user'
+          type: HTTP_AGENT
+          key: opns.auth.failures.ssh.user
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'SSH logins for user names that do not exist, the usual sign of a scan. One attempt can log two lines. Counts new matching lines in the audit log since the previous poll; needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=invalid+user'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: security
+        - uuid: a889b3374312490ba96033f2866b2c40
+          name: 'Failed logins: SSH wrong password'
+          type: HTTP_AGENT
+          key: opns.auth.failures.ssh.password
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'SSH password logins rejected. Counts new matching lines in the audit log since the previous poll; needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=failed+password'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: security
+        - uuid: 99f0210eeb0448a2bcfb9bab69eba30b
+          name: 'Failed logins'
+          type: CALCULATED
+          key: opns.auth.failures
+          delay: 5m
+          params: 'last(//opns.auth.failures.webgui)+last(//opns.auth.failures.ssh.user)+last(//opns.auth.failures.ssh.password)'
+          description: 'Failed Web GUI and SSH logins in the last five minutes. Logins over the API with a wrong key are not logged by OPNsense and cannot be counted.'
+          tags:
+            - tag: component
+              value: security
+          triggers:
+            - uuid: 0c855d0545a34514abc490300d79f80e
+              expression: 'last(/OPNsense by REST API/opns.auth.failures)>{$OPNS.AUTH.FAIL.MAX}'
+              name: 'Repeated failed logins'
+              opdata: '{ITEM.LASTVALUE1} in 5 minutes'
+              priority: WARNING
+              description: 'More than {$OPNS.AUTH.FAIL.MAX} failed Web GUI or SSH logins within five minutes. Someone is guessing passwords or a script uses stale credentials. The audit log names the source addresses.'
+              tags:
+                - tag: scope
+                  value: security
         - uuid: 513d9a0f957d4ca28df298041e41fc24
           name: 'pf: State table removals per second'
           type: DEPENDENT
@@ -4918,6 +5022,9 @@ zabbix_export:
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
+        - macro: '{$OPNS.AUTH.FAIL.MAX}'
+          value: '5'
+          description: 'Failed Web GUI and SSH logins within five minutes counting as repeated.'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
           value: .+
           description: 'Used for filesystem discovery. Can be overridden on the host or linked template level.'
