@@ -2636,127 +2636,6 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.rows
-        - uuid: c6fe6e714e1344b7a7d437d86a4d06ea
-          name: DNS cache hit ratio
-          type: CALCULATED
-          key: opns.unbound.cache.hitratio
-          delay: 1m
-          value_type: FLOAT
-          units: '%'
-          params: 100*last(//opns.unbound.cachehits.rate)/(last(//opns.unbound.cachehits.rate)+last(//opns.unbound.cachemiss.rate)+0.00001)
-          description: Share of queries answered from the cache. On a resolver for a normal network this settles well above 60 percent once the cache is warm. A ratio that collapses points at a cache that is being flushed or at a client asking for something new every time.
-          tags:
-            - tag: component
-              value: network
-          triggers:
-            - uuid: a9aa0de161fa4606a331529f9025bc79
-              expression: max(/OPNsense by REST API/opns.unbound.cache.hitratio,30m)<{$OPNS.DNS.HITRATIO.MIN} and min(/OPNsense by REST API/opns.unbound.queries.rate,30m)>0
-              name: DNS cache hit ratio is low
-              priority: INFO
-              description: The resolver answered fewer queries from its cache than expected over half an hour, while it was being asked at all. The second condition keeps an idle resolver quiet.
-              tags:
-                - tag: scope
-                  value: performance
-        - uuid: b983cd2f30684b91a7effb452d74f524
-          name: DNS cache hits per second
-          type: DEPENDENT
-          key: opns.unbound.cachehits.rate
-          delay: '0'
-          description: Queries answered from the cache without asking anybody.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.num.cachehits
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
-        - uuid: 1aceaccf7a4a49b0b3f0ea65117c41c9
-          name: DNS cache misses per second
-          type: DEPENDENT
-          key: opns.unbound.cachemiss.rate
-          delay: '0'
-          description: Queries the resolver had to recurse or forward. Together with the hit rate this gives the cache hit ratio.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.num.cachemiss
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
-        - uuid: 24b3889cd7994de386f948c82f979397
-          name: DNS prefetches per second
-          type: DEPENDENT
-          key: opns.unbound.prefetch.rate
-          delay: '0'
-          description: Entries the resolver refreshed before they expired. Prefetching trades a few extra queries for answers that stay cached.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.num.prefetch
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
-        - uuid: e1372b14edc34a7ea6554b17abdeb132
-          name: DNS queries per second
-          type: DEPENDENT
-          key: opns.unbound.queries.rate
-          delay: '0'
-          description: Queries the resolver answered or forwarded, as a rate. A firewall that also serves DNS for the network behind it shows the load of that network here.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.num.queries
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
-        - uuid: e6d35da4481f46fda15df55817ac3ffa
-          name: DNS queries rate limited per second
-          type: DEPENDENT
-          key: opns.unbound.ratelimited.rate
-          delay: '0'
-          description: Queries dropped because a client exceeded the per address rate limit. Above zero means either a misbehaving client or a reflection attempt.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.num.queries_ip_ratelimited
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
         - uuid: d3573d25af9a49329edbb9dc1a5f8eea
           name: RAW Unbound statistics
           type: HTTP_AGENT
@@ -2768,87 +2647,12 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          description: Master item. Resolver statistics from unbound/diagnostics/stats, reduced to the total block, which sums the per thread blocks. Counters are absolute since the resolver last started.
+          description: Master item. Resolver statistics from unbound/diagnostics/stats. The Unbound discovery rule turns its total block, which sums the per thread blocks, into items; where Unbound is not the resolver the API answers {"status":"failed"} and the rule discovers nothing. Counters are absolute since the resolver last started.
           timeout: 30s
           url: https://{HOST.IP}:{$OPNS.PORT}/api/unbound/diagnostics/stats
           tags:
             - tag: component
               value: raw
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.data.total
-        - uuid: bc35ecb2fa0a4d3da0e5368af421dc05
-          name: DNS recursion time
-          type: DEPENDENT
-          key: opns.unbound.recursion.time
-          delay: '0'
-          description: Average time an answer took that was not in the cache. This is the number a user feels when a page is slow to start loading.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.recursion.time.avg
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: s
-          triggers:
-            - uuid: 9c05deacf9eb49eeb19352b868a72138
-              expression: avg(/OPNsense by REST API/opns.unbound.recursion.time,10m)>{$OPNS.DNS.RECURSION.WARN}
-              name: DNS recursion is slow
-              priority: WARNING
-              description: Answers that were not cached took longer than the threshold over ten minutes, so either the upstream resolvers are slow or the link to them is.
-              tags:
-                - tag: scope
-                  value: performance
-        - uuid: 9f4e6995a1184f25b87ae53839431f73
-          name: DNS requests in the queue
-          type: DEPENDENT
-          key: opns.unbound.requestlist.current
-          delay: '0'
-          description: Requests waiting to be resolved. A queue that no longer empties means the resolver is the bottleneck.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.requestlist.current.all
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-        - uuid: 0797139215f94bcfabcf3b98a3cdd35b
-          name: DNS requests dropped, queue full
-          type: DEPENDENT
-          key: opns.unbound.requestlist.exceeded
-          delay: '0'
-          description: Requests dropped because the queue was full, as a rate. Anything above zero is lost DNS.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.requestlist.exceeded
-            - type: CHANGE_PER_SECOND
-              parameters:
-                - ''
-          master_item:
-            key: opns.unbound.raw
-          tags:
-            - tag: component
-              value: network
-          value_type: FLOAT
-          units: '!q/s'
-          triggers:
-            - uuid: 4c6080d2e3944d05969c9aa18f2b6420
-              expression: min(/OPNsense by REST API/opns.unbound.requestlist.exceeded,5m)>0
-              name: DNS requests are being dropped
-              priority: AVERAGE
-              description: The request queue of the resolver overflowed, so queries were answered by nobody. Clients see a timeout, not an error.
-              tags:
-                - tag: scope
-                  value: availability
         - uuid: ce65b79664fc47f8a21f7283252af4bf
           name: 'OPNsense: Version'
           type: DEPENDENT
@@ -4915,6 +4719,217 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#TYPE}'
               path: $.type
+        - uuid: ef9070c81b19454ea308effc4d25dd13
+          name: Unbound resolver
+          type: DEPENDENT
+          key: opns.unbound.discovery
+          delay: '0'
+          description: 'Creates the resolver statistics when Unbound answers. Where another resolver is in use, the API answers {"status":"failed"}, nothing is discovered and nothing is left unsupported.'
+          item_prototypes:
+            - uuid: dffe87ce263c415b8c360c173613ec79
+              name: DNS cache hit ratio
+              type: CALCULATED
+              key: opns.unbound.cache.hitratio[{#UNBOUND.BLOCK}]
+              delay: 1m
+              value_type: FLOAT
+              units: '%'
+              params: 100*last(//opns.unbound.cachehits.rate[{#UNBOUND.BLOCK}])/(last(//opns.unbound.cachehits.rate[{#UNBOUND.BLOCK}])+last(//opns.unbound.cachemiss.rate[{#UNBOUND.BLOCK}])+0.00001)
+              description: Share of queries answered from the cache. On a resolver for a normal network this settles well above 60 percent once the cache is warm. A ratio that collapses points at a cache that is being flushed or at a client asking for something new every time.
+              tags:
+                - tag: component
+                  value: network
+            - uuid: 32465c59abc64157b14ece2a14b716b9
+              name: DNS cache hits per second
+              type: DEPENDENT
+              key: opns.unbound.cachehits.rate[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Queries answered from the cache without asking anybody.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.num.cachehits
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+            - uuid: 0ba26724f667417f8df54f8e2bd959ba
+              name: DNS cache misses per second
+              type: DEPENDENT
+              key: opns.unbound.cachemiss.rate[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Queries the resolver had to recurse or forward. Together with the hit rate this gives the cache hit ratio.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.num.cachemiss
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+            - uuid: a3ab820662bc4412934ac6b814970a46
+              name: DNS prefetches per second
+              type: DEPENDENT
+              key: opns.unbound.prefetch.rate[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Entries the resolver refreshed before they expired. Prefetching trades a few extra queries for answers that stay cached.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.num.prefetch
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+            - uuid: 9d452bfc22e04dfeae4a655bc972efc8
+              name: DNS queries per second
+              type: DEPENDENT
+              key: opns.unbound.queries.rate[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Queries the resolver answered or forwarded, as a rate. A firewall that also serves DNS for the network behind it shows the load of that network here.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.num.queries
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+            - uuid: 31622304bc5a4f6b83ca6e89f2e19ae4
+              name: DNS queries rate limited per second
+              type: DEPENDENT
+              key: opns.unbound.ratelimited.rate[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Queries dropped because a client exceeded the per address rate limit. Above zero means either a misbehaving client or a reflection attempt.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.num.queries_ip_ratelimited
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+            - uuid: 6af0f75e4bd74c899bfdaf5d1f3932dd
+              name: DNS recursion time
+              type: DEPENDENT
+              key: opns.unbound.recursion.time[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Average time an answer took that was not in the cache. This is the number a user feels when a page is slow to start loading.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.recursion.time.avg
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: s
+              trigger_prototypes:
+                - uuid: e5a5a9dd28a148f59652cdbabfaef878
+                  expression: avg(/OPNsense by REST API/opns.unbound.recursion.time[{#UNBOUND.BLOCK}],10m)>{$OPNS.DNS.RECURSION.WARN}
+                  name: DNS recursion is slow
+                  priority: WARNING
+                  description: Answers that were not cached took longer than the threshold over ten minutes, so either the upstream resolvers are slow or the link to them is.
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: 101533b1d4b24b8bb31ffb678719a251
+              name: DNS requests in the queue
+              type: DEPENDENT
+              key: opns.unbound.requestlist.current[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Requests waiting to be resolved. A queue that no longer empties means the resolver is the bottleneck.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.requestlist.current.all
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+            - uuid: a184d59b1c884da0adc48476dfd193e0
+              name: DNS requests dropped, queue full
+              type: DEPENDENT
+              key: opns.unbound.requestlist.exceeded[{#UNBOUND.BLOCK}]
+              delay: '0'
+              description: Requests dropped because the queue was full, as a rate. Anything above zero is lost DNS.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.data.{#UNBOUND.BLOCK}.requestlist.exceeded
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.unbound.raw
+              tags:
+                - tag: component
+                  value: network
+              value_type: FLOAT
+              units: '!q/s'
+              trigger_prototypes:
+                - uuid: 7622a98677f04c3b91f4cb6021f6a6d4
+                  expression: min(/OPNsense by REST API/opns.unbound.requestlist.exceeded[{#UNBOUND.BLOCK}],5m)>0
+                  name: DNS requests are being dropped
+                  priority: AVERAGE
+                  description: The request queue of the resolver overflowed, so queries were answered by nobody. Clients see a timeout, not an error.
+                  tags:
+                    - tag: scope
+                      value: availability
+          trigger_prototypes:
+            - uuid: 557924dfe961423ebb6c64c245ee13f2
+              expression: max(/OPNsense by REST API/opns.unbound.cache.hitratio[{#UNBOUND.BLOCK}],30m)<{$OPNS.DNS.HITRATIO.MIN} and min(/OPNsense by REST API/opns.unbound.queries.rate[{#UNBOUND.BLOCK}],30m)>0
+              name: DNS cache hit ratio is low
+              priority: INFO
+              description: The resolver answered fewer queries from its cache than expected over half an hour, while it was being asked at all. The second condition keeps an idle resolver quiet.
+              tags:
+                - tag: scope
+                  value: performance
+          master_item:
+            key: opns.unbound.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // One entry for the total block when the resolver answers, none when it does not.
+                  var d = JSON.parse(value);
+                  return JSON.stringify(d && d.data && d.data.total ? [{'{#UNBOUND.BLOCK}': 'total'}] : []);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
@@ -7498,28 +7513,20 @@ zabbix_export:
                       value: UPSVO
             - name: Resolver, certificates and leases
               widgets:
-                - type: gauge
+                - type: honeycomb
                   name: DNS cache hit ratio
                   width: '18'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.cache.hitratio
                     - type: STRING
-                      name: description
+                      name: items.0
                       value: DNS cache hit ratio
-                    - type: INTEGER
-                      name: max
-                      value: '100'
-                    - type: INTEGER
-                      name: min
-                      value: '0'
                     - type: STRING
-                      name: units
-                      value: '%'
+                      name: primary_label
+                      value: DNS cache hit ratio
+                    - type: STRING
+                      name: reference
+                      value: DNSHT
                     - type: STRING
                       name: thresholds.0.color
                       value: E53935
@@ -7538,57 +7545,51 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.2.threshold
                       value: '60'
-                - type: item
+                - type: honeycomb
                   name: Queries
                   x: '18'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.queries.rate
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: DNS queries per second
+                    - type: STRING
+                      name: primary_label
+                      value: Queries
+                    - type: STRING
+                      name: reference
+                      value: DNSQS
+                - type: honeycomb
                   name: Recursion time
                   x: '30'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.recursion.time
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: DNS recursion time
+                    - type: STRING
+                      name: primary_label
+                      value: Recursion time
+                    - type: STRING
+                      name: reference
+                      value: DNSRT
+                - type: honeycomb
                   name: Queue
                   x: '42'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.requestlist.current
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
+                    - type: STRING
+                      name: items.0
+                      value: DNS requests in the queue
+                    - type: STRING
+                      name: primary_label
+                      value: Queue
+                    - type: STRING
+                      name: reference
+                      value: DNSQU
                 - type: item
                   name: System status
                   x: '54'
@@ -7732,42 +7733,38 @@ zabbix_export:
                     - type: INTEGER
                       name: show.2
                       value: '3'
-                - type: item
+                - type: honeycomb
                   name: Queries rate limited
                   x: '24'
                   'y': '8'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.ratelimited.rate
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: DNS queries rate limited per second
+                    - type: STRING
+                      name: primary_label
+                      value: Queries rate limited
+                    - type: STRING
+                      name: reference
+                      value: DNSLM
+                - type: honeycomb
                   name: Queue overflows
                   x: '36'
                   'y': '8'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.unbound.requestlist.exceeded
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
+                    - type: STRING
+                      name: items.0
+                      value: DNS requests dropped, queue full
+                    - type: STRING
+                      name: primary_label
+                      value: Queue overflows
+                    - type: STRING
+                      name: reference
+                      value: DNSOV
                 - type: honeycomb
                   name: Certificate expiry
                   'y': '11'

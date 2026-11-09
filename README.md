@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+118 items, 17 discovery rules with 84 item prototypes, 58 triggers, 42 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -207,6 +207,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| Unbound resolver | resolver statistics, only where Unbound answers |
 
 ## Triggers
 
@@ -296,6 +297,12 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**Resolver statistics are discovered.** Where Unbound is not the resolver, for example with
+Dnsmasq handling DNS, `unbound/diagnostics/stats` answers `{"status":"failed"}`. The
+Unbound resolver rule then discovers nothing, so the statistics and their three triggers do not
+exist rather than sitting unsupported. The running state of Unbound itself is still watched
+through the service discovery.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
