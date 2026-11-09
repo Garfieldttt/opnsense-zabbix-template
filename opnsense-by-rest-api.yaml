@@ -3091,6 +3091,26 @@ zabbix_export:
               tags:
                 - tag: Gateway
                   value: '{#GWSTATUSNAME}'
+            - uuid: 675b1270202847aaac0c4a2fef0f1b8e
+              name: 'Gateway monitored {#GWSTATUSNAME}'
+              type: DEPENDENT
+              key: 'opns.gw.status.monitored[{#GWSTATUSNAME}]'
+              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["name"] == "{#GWSTATUSNAME}")].delay.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === ''~'' ? 0 : 1;'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.raw.gateway.status
+              tags:
+                - tag: Gateway
+                  value: '{#GWSTATUSNAME}'
             - uuid: 0057921138c64e8696c5db0728ffc89c
               name: 'Gateway RTT {#GWSTATUSNAME}'
               type: DEPENDENT
@@ -3186,18 +3206,34 @@ zabbix_export:
                   value: '{#GWSTATUSNAME}'
           trigger_prototypes:
             - uuid: 6889ca48ddf2422e8a41f51373328ce6
-              expression: 'nodata(/OPNsense by REST API/opns.gw.status.delay[{#GWSTATUSNAME}],10m)=1 and nodata(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],10m)=1 and nodata(/OPNsense by REST API/opns.gw.status.stddev[{#GWSTATUSNAME}],10m)=1'
+              expression: 'last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=0'
               name: 'Gateway Monitoring on {#GWSTATUSNAME} is disabled'
               priority: INFO
               description: 'The gateway has no monitor address, so the firewall never probes it and reports a tilde instead of round trip time, loss and deviation. It also reports the gateway as Online, which says nothing about reachability. While this is the case an outage of this gateway raises nothing, because the down trigger works on packet loss. Set a monitor address under System, Gateways, Single, or accept that this gateway is not checked: https://docs.opnsense.org/manual/gateways.html'
-              dependencies:
-                - name: 'No data from OPNsense'
-                  expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
           master_item:
             key: opns.raw.gateway.status
           lld_macro_paths:
             - lld_macro: '{#GWSTATUSNAME}'
               path: $.name
+            - lld_macro: '{#GW.DELAY}'
+              path: $.delay
+          overrides:
+            - name: 'Gateway not probed'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#GW.DELAY}'
+                    value: '^~$'
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: '^Gateway (RTT|RTTd|loss) '
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: '(acket loss|is down)$'
+                  discover: NO_DISCOVER
         - uuid: 9674f5eca4e146c2be5abfac7d493f5f
           name: 'Interface CARP Discovery'
           type: DEPENDENT

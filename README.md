@@ -255,9 +255,12 @@ key, never with an admin key.
 
 **Gateway monitoring switched off.** A gateway without a monitor address reports a tilde for
 round trip time, loss and deviation, and a status of `none` that the API translates to
-`Online`. The three items discard the reading in that case and stay empty instead of
-substituting a number. While monitoring is off, an outage of that gateway raises nothing,
-because the down trigger works on packet loss. That is what the Info trigger is for.
+`Online`. The gateway rule therefore only discovers round trip time, loss and deviation, and
+the loss triggers, for gateways that are actually probed; for the others a monitored item reads
+0. Earlier the three items existed and discarded the tilde, which left them unsupported for
+good after any outage of the API, because a discarded value never clears an error. While
+monitoring is off, an outage of that gateway raises nothing, because the down trigger works on
+packet loss. That is what the Info trigger is for.
 
 **IPsec phase 2** needs one request per connection. `searchPhase2Action` reads its connection
 from `getPost('id')` and returns an empty set for a plain GET, so phase 2 is an HTTP agent
