@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-128 items, 16 discovery rules with 76 item prototypes, 61 triggers, 43 macros and a dashboard
+127 items, 16 discovery rules with 76 item prototypes, 61 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -37,7 +37,7 @@ with 9 pages.
 | netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
 | IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
 | Interface traffic, errors, link state, per interface blocks | `diagnostics/traffic/_interface`, `diagnostics/firewall/pf_statistics/interfaces` |
-| Link speed and bandwidth utilisation per interface, optional | `interfaces/overview/interfaces_info` |
+| Link speed and bandwidth utilisation per interface | `diagnostics/traffic/_interface` |
 | pf state table and source tracking, with their limits | `diagnostics/firewall/pf_states`, `pf_statistics/info`, `pf_statistics/memory` |
 | pf counters, SYN floods, malformed packets | `diagnostics/firewall/pf_statistics/info` |
 | Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
@@ -132,11 +132,6 @@ else. That is the way to trade coverage against privilege:
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
 item. On a firewall where the plugin is not installed at all the route does not exist and the
 answer is HTTP 404, which is why the item ships disabled.
-
-**Status: Interfaces** (`page-status-interfaces`) is needed only for link speed and the
-bandwidth utilisation triggers. It is **not** read only: `api/interfaces/overview/*` also
-covers reloading an interface. Without it the speed master returns HTTP 403, the speed items
-stay unsupported and the utilisation triggers stay silent; nothing else is affected.
 
 ## Macros
 
@@ -272,12 +267,13 @@ prototype inside the phase 1 rule that posts `id={#IPSECNAME}`. Where the API le
 `phase1desc` empty, the tunnel name stands in, because the discovery uses that field as the
 entity identity and identical keys would collapse into one.
 
-**Link speed comes from the media string.** `interfaces_info` reports what ifconfig prints,
-for example `1000baseT <full-duplex>` or `10Gbase-SR`, so the master item parses it into bits per
-second. Interfaces without media, such as loopback, pppoe, WireGuard and OpenVPN, report 0 and
-the bandwidth triggers skip them. Virtual NICs report a nominal speed, virtio claims
-`10Gbase-T`, so on a virtual firewall the utilisation triggers compare against that figure
-rather than the real uplink.
+**Link speed is the line rate the driver reports**, read from the same
+`diagnostics/traffic/_interface` answer as the counters, so it needs no extra privilege. Only
+Ethernet, VLAN and LAGG interfaces are trusted: pppoe reports a nominal 64 kbit/s, which would
+make every PPPoE uplink look saturated, so it and the other virtual interfaces read 0 and the
+bandwidth triggers skip them. Virtual NICs report a nominal speed, virtio claims 10 Gbit/s, so
+on a virtual firewall the utilisation triggers compare against that figure rather than the
+real uplink.
 
 **Physical interface counters** come from `diagnostics/traffic/_interface`, not from
 `netstat`, whose counters reset on every read.

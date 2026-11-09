@@ -628,41 +628,6 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: 90e7a0a1004a4db08abf7ff576ee588f
-          name: 'RAW Interface media'
-          type: HTTP_AGENT
-          key: opns.raw.interfaces.info
-          delay: 5m
-          history: '0'
-          value_type: TEXT
-          authtype: BASIC
-          username: '{$OPNS.KEY}'
-          password: '{$OPNS.SECRET}'
-          description: 'Master item. Media per interface from interfaces/overview/interfaces_info, reduced to the link speed in bits per second. Needs the Status: Interfaces privilege; without it the speed items stay unsupported and the bandwidth triggers stay silent, nothing else is affected.'
-          timeout: 15s
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/interfaces/overview/interfaces_info'
-          preprocessing:
-            - type: JAVASCRIPT
-              parameters:
-                - |
-                  // The API carries the media as ifconfig prints it, for example "1000baseT <full-duplex>",
-                  // "2500Base-T", "10Gbase-SR" or "100baseTX". A bare number is megabits, a G prefix gigabits.
-                  // Interfaces without media (loopback, pppoe, wireguard, openvpn, enc, pflog) get 0, which
-                  // the triggers treat as unknown.
-                  var rows = JSON.parse(value).rows || [], out = [];
-                  for (var i = 0; i < rows.length; i++) {
-                      var media = rows[i].media ? String(rows[i].media) : '';
-                      var m = /^(\d+(?:\.\d+)?)\s*([GM]?)base/i.exec(media);
-                      var speed = 0;
-                      if (m) {
-                          speed = Number(m[1]) * (m[2].toUpperCase() === 'G' ? 1000000000 : 1000000);
-                      }
-                      out.push({device: String(rows[i].device), speed: speed, media: media});
-                  }
-                  return JSON.stringify(out);
-          tags:
-            - tag: component
-              value: raw
         - uuid: f126ae58d3324d6cbfa826d6348c8bb3
           name: 'RAW Load'
           type: HTTP_AGENT
@@ -3634,17 +3599,26 @@ zabbix_export:
               type: DEPENDENT
               key: 'opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]'
               units: bps
-              description: 'Negotiated link speed, parsed from the media the interface reports. 0 means the interface reports no media, as loopback, pppoe, WireGuard and OpenVPN interfaces do, and the bandwidth triggers skip it. Virtual NICs report a nominal speed, virtio for example 10Gbase-T, so on a virtual machine the utilisation triggers measure against that figure rather than against the real uplink; set {$OPNS.IF.UTIL.MAX} per interface or ignore them there.'
+              description: 'Line rate the driver reports for the interface. Only Ethernet, VLAN and LAGG interfaces carry a real figure; pppoe reports a nominal 64 kbit/s and other virtual interfaces report nothing useful, so they read 0 and the bandwidth triggers skip them. Virtual NICs report a nominal speed, virtio for example 10 Gbit/s, so on a virtual machine the utilisation triggers measure against that figure rather than against the real uplink; set {$OPNS.IF.UTIL.MAX} per interface or ignore them there.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - '$[?(@.device == "{#OPNS.INTERFACE.DEVICE}")].speed.first()'
-                  error_handler: DISCARD_VALUE
+                    - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // "line rate" reads like "1000000000 bit/s". Interface types as netstat names them:
+                      // Ethernet, l2vlan (135) and ieee8023adLag (161) carry the negotiated speed.
+                      var o = JSON.parse(value), m = /^(\d+)/.exec(String(o['line rate']));
+                      if (!m || !/^(Ethernet|unknown type (135|161))$/.test(String(o.type))) {
+                          return 0;
+                      }
+                      return m[1];
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1h
               master_item:
-                key: opns.raw.interfaces.info
+                key: opns.raw.interfaces.stat
               tags:
                 - tag: component
                   value: network
