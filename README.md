@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 16 discovery rules with 76 item prototypes, 61 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -37,6 +37,7 @@ with 9 pages.
 | netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
 | IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
 | Interface traffic, errors, link state, per interface blocks | `diagnostics/traffic/_interface`, `diagnostics/firewall/pf_statistics/interfaces` |
+| Link speed and bandwidth utilisation per interface, optional | `interfaces/overview/interfaces_info` |
 | pf state table and source tracking, with their limits | `diagnostics/firewall/pf_states`, `pf_statistics/info`, `pf_statistics/memory` |
 | pf counters, SYN floods, malformed packets | `diagnostics/firewall/pf_statistics/info` |
 | Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
@@ -132,6 +133,11 @@ else. That is the way to trade coverage against privilege:
 item. On a firewall where the plugin is not installed at all the route does not exist and the
 answer is HTTP 404, which is why the item ships disabled.
 
+**Status: Interfaces** (`page-status-interfaces`) is needed only for link speed and the
+bandwidth utilisation triggers. It is **not** read only: `api/interfaces/overview/*` also
+covers reloading an interface. Without it the speed master returns HTTP 403, the speed items
+stay unsupported and the utilisation triggers stay silent; nothing else is affected.
+
 ## Macros
 
 ### Connection
@@ -152,6 +158,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.LOAD.PERCORE.WARN}` | `1` | Five minute load per core, 1 means the cores are exactly saturated |
 | `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Memory utilisation counting as high |
 | `{$OPNS.MBUF.UTIL.WARN}` | `80` | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.IF.UTIL.MAX}` | `90` | Bandwidth utilisation in percent of the link speed counting as high, averaged over 15 minutes. Per interface through context |
 | `{$OPNS.SWAP.UTIL.WARN}` | `5` | Swap in use counting as a problem. A firewall should not swap at all, so this is deliberately low. Per device through macro context |
 | `{$OPNS.TEMP.CRIT}` | `80` | Sensor temperature in degrees Celsius. Per sensor through context, for example `{$OPNS.TEMP.CRIT:"dev.cpu.0.temperature"}` |
 | `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Filesystem utilisation, warning |
@@ -191,7 +198,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 | Rule | Discovers |
 |------|-----------|
-| Interface Stats Discovery | traffic, errors and per interface pf blocks |
+| Interface Stats Discovery | traffic, errors, per interface pf blocks and link speed |
 | Network interfaces | link state and inbound errors |
 | Gateway Discovery | address, status, round trip time, loss, deviation |
 | Interface CARP Discovery | CARP status per virtual address |
@@ -210,7 +217,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+61 in total: 2 Disaster, 13 High, 13 Average, 23 Warning, 10 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -264,6 +271,13 @@ from `getPost('id')` and returns an empty set for a plain GET, so phase 2 is an 
 prototype inside the phase 1 rule that posts `id={#IPSECNAME}`. Where the API leaves
 `phase1desc` empty, the tunnel name stands in, because the discovery uses that field as the
 entity identity and identical keys would collapse into one.
+
+**Link speed comes from the media string.** `interfaces_info` reports what ifconfig prints,
+for example `1000baseT <full-duplex>` or `10Gbase-SR`, so the master item parses it into bits per
+second. Interfaces without media, such as loopback, pppoe, WireGuard and OpenVPN, report 0 and
+the bandwidth triggers skip them. Virtual NICs report a nominal speed, virtio claims
+`10Gbase-T`, so on a virtual firewall the utilisation triggers compare against that figure
+rather than the real uplink.
 
 **Physical interface counters** come from `diagnostics/traffic/_interface`, not from
 `netstat`, whose counters reset on every read.

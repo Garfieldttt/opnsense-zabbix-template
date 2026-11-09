@@ -628,6 +628,41 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 90e7a0a1004a4db08abf7ff576ee588f
+          name: 'RAW Interface media'
+          type: HTTP_AGENT
+          key: opns.raw.interfaces.info
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Master item. Media per interface from interfaces/overview/interfaces_info, reduced to the link speed in bits per second. Needs the Status: Interfaces privilege; without it the speed items stay unsupported and the bandwidth triggers stay silent, nothing else is affected.'
+          timeout: 15s
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/interfaces/overview/interfaces_info'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // The API carries the media as ifconfig prints it, for example "1000baseT <full-duplex>",
+                  // "2500Base-T", "10Gbase-SR" or "100baseTX". A bare number is megabits, a G prefix gigabits.
+                  // Interfaces without media (loopback, pppoe, wireguard, openvpn, enc, pflog) get 0, which
+                  // the triggers treat as unknown.
+                  var rows = JSON.parse(value).rows || [], out = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      var media = rows[i].media ? String(rows[i].media) : '';
+                      var m = /^(\d+(?:\.\d+)?)\s*([GM]?)base/i.exec(media);
+                      var speed = 0;
+                      if (m) {
+                          speed = Number(m[1]) * (m[2].toUpperCase() === 'G' ? 1000000000 : 1000000);
+                      }
+                      out.push({device: String(rows[i].device), speed: speed, media: media});
+                  }
+                  return JSON.stringify(out);
+          tags:
+            - tag: component
+              value: raw
         - uuid: f126ae58d3324d6cbfa826d6348c8bb3
           name: 'RAW Load'
           type: HTTP_AGENT
@@ -3594,6 +3629,59 @@ zabbix_export:
                   value: '{#OPNS.INTERFACE.NAME}'
                 - tag: interface
                   value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 3e6dd3a7fae34439be455911b0456588
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Speed'
+              type: DEPENDENT
+              key: 'opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]'
+              units: bps
+              description: 'Negotiated link speed, parsed from the media the interface reports. 0 means the interface reports no media, as loopback, pppoe, WireGuard and OpenVPN interfaces do, and the bandwidth triggers skip it. Virtual NICs report a nominal speed, virtio for example 10Gbase-T, so on a virtual machine the utilisation triggers measure against that figure rather than against the real uplink; set {$OPNS.IF.UTIL.MAX} per interface or ignore them there.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.device == "{#OPNS.INTERFACE.DEVICE}")].speed.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.raw.interfaces.info
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+              trigger_prototypes:
+                - uuid: 2e52d3402be74e89a6ceda2df467b410
+                  expression: 'change(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])<0 and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+                  name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}) has changed to a lower speed'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'The link renegotiated to a lower speed than before, often a sign of a cable, optic or autonegotiation problem. Close it manually once the cause is known.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: performance
+          trigger_prototypes:
+            - uuid: d65b26c6a9f34ad6a3cab459fbe5d853
+              expression: 'avg(/OPNsense by REST API/opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}],15m)*8>({$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"}/100)*last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]) and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+              name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}): High inbound bandwidth usage'
+              opdata: 'In: {ITEM.LASTVALUE1}, speed: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Inbound traffic averaged over 15 minutes is above {$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"} percent of the link speed.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 28546d0716884f3c97eebab77e19f639
+              expression: 'avg(/OPNsense by REST API/opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}],15m)*8>({$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"}/100)*last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]) and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+              name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}): High outbound bandwidth usage'
+              opdata: 'Out: {ITEM.LASTVALUE1}, speed: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Outbound traffic averaged over 15 minutes is above {$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"} percent of the link speed.'
+              tags:
+                - tag: scope
+                  value: performance
           master_item:
             key: opns.raw.interfaces.stat
           lld_macro_paths:
@@ -4992,6 +5080,9 @@ zabbix_export:
         - macro: '{$OPNS.IF.CONTROL}'
           value: '1'
           description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
+        - macro: '{$OPNS.IF.UTIL.MAX}'
+          value: '90'
+          description: 'Bandwidth utilisation in percent of the link speed counting as high, averaged over 15 minutes. Per interface through context, for example {$OPNS.IF.UTIL.MAX:"igb0"}.'
         - macro: '{$OPNS.IF.NAME.NOT_MATCHES}'
           value: ^(pflog|pfsync|enc|lo)\d*$
           description: Interfaces that should not be discovered.
