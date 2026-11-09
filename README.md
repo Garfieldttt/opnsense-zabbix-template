@@ -77,11 +77,23 @@ set the three connection macros:
 | Macro | Value |
 |-------|-------|
 | `{$OPNS.KEY}` | the API key |
-| `{$OPNS.SECRET}` | the API secret |
+| `{$OPNS.SECRET}` | the API secret. Choose **Secret text** as the macro type on the host, so it stays hidden in the frontend |
 | `{$OPNS.PORT}` | the HTTPS port of the web interface, default 443 |
 
-The items address the firewall through `{HOST.IP}`, so the interface address is what counts,
-not the DNS name.
+The items address the firewall through `{HOST.CONN}`, so the address or DNS name the interface
+is set to connect to is what counts.
+
+### TLS
+
+The items do not verify the certificate of the web interface, because a fresh OPNsense
+serves a self-signed one and verification would leave every item unsupported. The API key
+and secret travel as HTTP Basic authentication, so on a network you do not fully trust,
+give the web interface a certificate the Zabbix server or proxy trusts, set the host
+interface to connect by the DNS name the certificate is issued for, and switch on
+**SSL verify peer** and **SSL verify host** for the HTTP agent items in the template. Zabbix
+takes no macro in those two fields, so they cannot be switched per host; the alternative to
+editing every item is to add `verify_peer: 'YES'` and `verify_host: 'YES'` to each
+`HTTP_AGENT` item in the YAML before importing it.
 
 ## Privileges
 
@@ -139,7 +151,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | Macro | Default | Purpose |
 |-------|---------|---------|
 | `{$OPNS.KEY}` | empty | API key |
-| `{$OPNS.SECRET}` | empty | API secret |
+| `{$OPNS.SECRET}` | empty | API secret, declared as Secret text; set the host macro to Secret text as well |
 | `{$OPNS.PORT}` | `443` | HTTPS port of the web interface |
 
 ### Thresholds
