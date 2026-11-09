@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+127 items, 16 discovery rules with 86 item prototypes, 60 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -36,7 +36,7 @@ with 9 pages.
 | Kernel network memory, mbuf clusters, denied requests | `diagnostics/interface/get_memory_statistics` |
 | netisr queue drops, total and per protocol | `diagnostics/interface/get_netisr_statistics` |
 | IP and TCP protocol error rates | `diagnostics/interface/get_protocol_statistics` |
-| Interface traffic, errors, link state, per interface blocks | `diagnostics/traffic/_interface`, `diagnostics/firewall/pf_statistics/interfaces` |
+| Interface traffic, errors, queue drops, link state, per interface IPv4 and IPv6 pass and block counters, rules per interface | `diagnostics/traffic/_interface`, `diagnostics/firewall/pf_statistics/interfaces` |
 | pf state table and source tracking, with their limits | `diagnostics/firewall/pf_states`, `pf_statistics/info`, `pf_statistics/memory` |
 | pf counters, SYN floods, malformed packets | `diagnostics/firewall/pf_statistics/info` |
 | Ruleset size, fingerprint, evaluation rate, unmatched rules | `diagnostics/firewall/pf_statistics/rules` |
@@ -152,6 +152,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.LOAD.PERCORE.WARN}` | `1` | Five minute load per core, 1 means the cores are exactly saturated |
 | `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Memory utilisation counting as high |
 | `{$OPNS.MBUF.UTIL.WARN}` | `80` | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.IF.ERRORS.WARN}` | `2` | Interface errors per second, inbound or outbound, sustained for five minutes. Per interface through context |
 | `{$OPNS.SWAP.UTIL.WARN}` | `5` | Swap in use counting as a problem. A firewall should not swap at all, so this is deliberately low. Per device through macro context |
 | `{$OPNS.TEMP.CRIT}` | `80` | Sensor temperature in degrees Celsius. Per sensor through context, for example `{$OPNS.TEMP.CRIT:"dev.cpu.0.temperature"}` |
 | `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Filesystem utilisation, warning |
@@ -191,8 +192,8 @@ answer is HTTP 404, which is why the item ships disabled.
 
 | Rule | Discovers |
 |------|-----------|
-| Interface Stats Discovery | traffic, errors and per interface pf blocks |
-| Network interfaces | link state and inbound errors |
+| Interface Stats Discovery | traffic, errors, queue drops, per interface pf pass and block counters for IPv4 and IPv6, rules per interface |
+| Network interfaces | link state, inbound and outbound errors with error rate triggers |
 | Gateway Discovery | address, status, round trip time, loss, deviation |
 | Interface CARP Discovery | CARP status per virtual address |
 | Disk Discovery | filesystems |
@@ -210,7 +211,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+60 in total: 2 Disaster, 13 High, 13 Average, 23 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -222,7 +223,7 @@ table, a hot sensor, a CARP status change, a dead WireGuard instance or peer, an
 IPsec tunnel, an unreachable API and the UPS running on battery.
 
 Warning is the working range: utilisation and load, clock offset, swap in use, malformed
-packets, pf table entries filling up, protocol level errors. Info reports facts rather than
+packets, pf table entries filling up, protocol level errors, interface error rates. Info reports facts rather than
 faults: configuration changes, ruleset and rule count changes, a version change, available
 firmware updates, a reboot, and a gateway whose monitoring is switched off.
 

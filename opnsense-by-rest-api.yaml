@@ -3594,6 +3594,224 @@ zabbix_export:
                   value: '{#OPNS.INTERFACE.NAME}'
                 - tag: interface
                   value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 00eeb597ead5479c8ccc8127944ab9ef
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked bytes INv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.bytes.blockin.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in6_block_bytes"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: e1d186a42ca04befa824cf1889ae23b7
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked bytes OUTv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.bytes.blockout.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out6_block_bytes"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 1f76c5c6c44147b88d115680a8633651
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked packets INv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.packets.blockin.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in6_block_packets"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 69e602937b5049a2bab22f0a92d20ac4
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: blocked packets OUTv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.packets.blockout.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out6_block_packets"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: d2759be2b21c4cb39bb0c52c90614282
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed bytes INv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.bytes.passin.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in6_pass_bytes"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: aad65014377843278fd7050df3be3184
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed bytes OUTv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.bytes.passout.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out6_pass_bytes"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: fb81e1c7f511474d99f72b39245bcfa5
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed packets INv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.packets.passin.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["in6_pass_packets"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 70c861af1dc84fe58fc672fdaf1df850
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: passed packets OUTv6'
+              type: DEPENDENT
+              key: 'opns.interface.fw.packets.passout.v6[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["out6_pass_packets"]'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: ea4f46d0eec94276bd58483238711a17
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: output queue drops'
+              type: DEPENDENT
+              key: 'opns.interface.output.queue.drops[{#OPNS.INTERFACE.DEVICE}]'
+              trends: '0'
+              description: 'Packets dropped because the send queue was full, the counterpart of the input queue drops.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].["send queue drops"].first()'
+                - type: CHANGE_PER_SECOND
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.raw.interfaces.stat
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 489a0e0aabf84d10a2275f5e445f19b1
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Rules referencing the interface'
+              type: DEPENDENT
+              key: 'opns.interface.fw.rules.refs[{#OPNS.INTERFACE.DEVICE}]'
+              description: 'Number of loaded pf rules that reference this interface.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.interfaces.["{#OPNS.INTERFACE.DEVICE}"].["references"]'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: opns.raw.fw.interface.stat
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
           master_item:
             key: opns.raw.interfaces.stat
           lld_macro_paths:
@@ -4344,6 +4562,59 @@ zabbix_export:
                   value: network
                 - tag: interface
                   value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 76b1eef3f8f04c7bba167ca41c0e8c22
+                  expression: 'min(/OPNsense by REST API/opns.net.if.in.errors[{#IFNAME}],5m)>{$OPNS.IF.ERRORS.WARN:"{#IFNAME}"}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/OPNsense by REST API/opns.net.if.in.errors[{#IFNAME}],5m)<{$OPNS.IF.ERRORS.WARN:"{#IFNAME}"}*0.8'
+                  name: 'Interface {#IFALIAS} ({#IFNAME}): High inbound error rate'
+                  opdata: 'errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'More than {$OPNS.IF.ERRORS.WARN:"{#IFNAME}"} inbound errors per second for five minutes. Recovers below 80 percent of that threshold.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Interface {#IFALIAS} ({#IFNAME}) is down'
+                      expression: 'last(/OPNsense by REST API/opns.net.if.status[{#IFNAME}])=0 and {$OPNS.IF.CONTROL:"{#IFNAME}"}=1'
+                  tags:
+                    - tag: scope
+                      value: performance
+            - uuid: e689b7a369c246a1bf63415f96ead89c
+              name: 'Interface {#IFALIAS} ({#IFNAME}): Outbound errors'
+              type: DEPENDENT
+              key: opns.net.if.out.errors[{#IFNAME}]
+              description: Transmit errors on this interface.
+              delay: '0'
+              value_type: FLOAT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $[?(@.device == "{#IFNAME}")]['output errors'].first()
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+              master_item:
+                key: opns.raw.interfaces.stat
+              tags:
+                - tag: component
+                  value: network
+                - tag: interface
+                  value: '{#IFNAME}'
+              trigger_prototypes:
+                - uuid: 5f3f3e151af64a6397d3e24444448d5e
+                  expression: 'min(/OPNsense by REST API/opns.net.if.out.errors[{#IFNAME}],5m)>{$OPNS.IF.ERRORS.WARN:"{#IFNAME}"}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/OPNsense by REST API/opns.net.if.out.errors[{#IFNAME}],5m)<{$OPNS.IF.ERRORS.WARN:"{#IFNAME}"}*0.8'
+                  name: 'Interface {#IFALIAS} ({#IFNAME}): High outbound error rate'
+                  opdata: 'errors: {ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'More than {$OPNS.IF.ERRORS.WARN:"{#IFNAME}"} outbound errors per second for five minutes. Recovers below 80 percent of that threshold.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Interface {#IFALIAS} ({#IFNAME}) is down'
+                      expression: 'last(/OPNsense by REST API/opns.net.if.status[{#IFNAME}])=0 and {$OPNS.IF.CONTROL:"{#IFNAME}"}=1'
+                  tags:
+                    - tag: scope
+                      value: performance
             - uuid: 163268a164a34c96af929b357d7369fe
               name: 'Interface {#IFALIAS} ({#IFNAME}): Link status'
               type: DEPENDENT
@@ -4992,6 +5263,9 @@ zabbix_export:
         - macro: '{$OPNS.IF.CONTROL}'
           value: '1'
           description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
+        - macro: '{$OPNS.IF.ERRORS.WARN}'
+          value: '2'
+          description: 'Interface errors per second, inbound or outbound, counting as high when sustained for five minutes. Per interface through context, for example {$OPNS.IF.ERRORS.WARN:"igb0"}.'
         - macro: '{$OPNS.IF.NAME.NOT_MATCHES}'
           value: ^(pflog|pfsync|enc|lo)\d*$
           description: Interfaces that should not be discovered.
