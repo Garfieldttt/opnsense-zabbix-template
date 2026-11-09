@@ -212,6 +212,12 @@ zabbix_export:
           tags:
             - tag: component
               value: firewall
+          triggers:
+            - uuid: 8b1ff7160ba34620959dffa8b5eb743b
+              expression: 'nodata(/OPNsense by REST API/opns.fw.states.current,5m)=1'
+              name: 'No data from OPNsense'
+              priority: HIGH
+              description: 'The API has not answered for five minutes: the firewall is unreachable, the web interface is down, or the API key was revoked. Watches the state table count because it is polled every minute, keeps history, and comes from an endpoint the read only Lobby: Dashboard privilege covers. A raw master item cannot carry this trigger, since an item without history evaluates no trigger functions.'
         - uuid: f352bd8c49cf45ba9a987773990ec8f1
           name: 'Firewall states max'
           type: DEPENDENT
@@ -589,12 +595,6 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-          triggers:
-            - uuid: 8b1ff7160ba34620959dffa8b5eb743b
-              expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
-              name: 'No data from OPNsense'
-              priority: HIGH
-              description: 'can''t access the OPNsense API'
         - uuid: 2b7d229bae454019ac1c6e54b0571486
           name: 'RAW Carp Interfaces'
           type: HTTP_AGENT
@@ -3192,7 +3192,7 @@ zabbix_export:
               description: 'The gateway has no monitor address, so the firewall never probes it and reports a tilde instead of round trip time, loss and deviation. It also reports the gateway as Online, which says nothing about reachability. While this is the case an outage of this gateway raises nothing, because the down trigger works on packet loss. Set a monitor address under System, Gateways, Single, or accept that this gateway is not checked: https://docs.opnsense.org/manual/gateways.html'
               dependencies:
                 - name: 'No data from OPNsense'
-                  expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
+                  expression: 'nodata(/OPNsense by REST API/opns.fw.states.current,5m)=1'
           master_item:
             key: opns.raw.gateway.status
           lld_macro_paths:
