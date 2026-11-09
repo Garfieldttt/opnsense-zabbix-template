@@ -1162,6 +1162,71 @@ zabbix_export:
             - tag: component
               value: network
           value_type: UNSIGNED
+        - uuid: c47e236d32454ab2889bb6c2014d17fa
+          name: RAW Dnsmasq DHCP ranges
+          type: HTTP_AGENT
+          key: opns.dnsmasq.ranges.raw
+          delay: 1h
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Master item. DHCP ranges configured in Dnsmasq, reduced to one entry per interface with the size of its IPv4 pools. Feeds the Dnsmasq DHCP discovery; where Dnsmasq hands out no addresses there are no ranges and nothing is discovered.'
+          timeout: 15s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/dnsmasq/settings/search_range
+          tags:
+            - tag: component
+              value: raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // One entry per interface. IPv4 ranges count start to end inclusive; IPv6 ranges are
+                  // built from a constructor and prefix and have no fixed size, so they add nothing to pool4.
+                  function ip4(s) {
+                      var p = String(s).split('.');
+                      if (p.length !== 4) { return null; }
+                      return ((+p[0]) * 16777216) + ((+p[1]) * 65536) + ((+p[2]) * 256) + (+p[3]);
+                  }
+                  var rows = JSON.parse(value).rows || [], by = {}, out = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      var r = rows[i], k = String(r.interface || '');
+                      if (k === '') { continue; }
+                      if (!by[k]) { by[k] = {'if': k, 'descr': String(r['%interface'] || k), 'pool4': 0}; out.push(by[k]); }
+                      var a = ip4(r.start_addr), b = ip4(r.end_addr);
+                      if (a !== null && b !== null && b >= a) { by[k].pool4 += b - a + 1; }
+                  }
+                  return JSON.stringify(out);
+        - uuid: 8c3714463d5c4f7cbffca7832775a910
+          name: RAW Dnsmasq DHCP leases
+          type: HTTP_AGENT
+          key: opns.dnsmasq.leases.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Master item. Lease table of the Dnsmasq DHCP server, reduced to IPv4 and IPv6 lease counts per interface.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/dnsmasq/leases/search
+          tags:
+            - tag: component
+              value: raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value).rows || [], out = {};
+                  for (var i = 0; i < rows.length; i++) {
+                      var k = String(rows[i].if_name || rows[i]['if'] || '');
+                      if (!out[k]) { out[k] = {v4: 0, v6: 0}; }
+                      if (String(rows[i].address).indexOf(':') >= 0) { out[k].v6++; } else { out[k].v4++; }
+                  }
+                  return JSON.stringify(out);
         - uuid: 515b2eca849b446680debc2f8686a774
           name: RAW Kea DHCPv6 leases
           type: HTTP_AGENT
@@ -4915,9 +4980,109 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#TYPE}'
               path: $.type
+        - uuid: b116e2b255e549028967daeeeae7ca3d
+          name: Dnsmasq DHCP
+          type: DEPENDENT
+          key: opns.dnsmasq.dhcp.discovery
+          delay: '0'
+          description: 'One entry per interface with a Dnsmasq DHCP range. Where Dnsmasq hands out no addresses, nothing is discovered.'
+          item_prototypes:
+            - uuid: 9e74d467e0474efc86606daf90aab499
+              name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv4 leases'
+              type: DEPENDENT
+              key: 'opns.dnsmasq.leases.v4[{#DNSMASQ.IF}]'
+              description: 'IPv4 leases Dnsmasq currently holds on this interface, dynamic and reserved alike. An interface without any lease reads 0.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.["{#DNSMASQ.IF}"].v4'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: opns.dnsmasq.leases.raw
+              tags:
+                - tag: component
+                  value: dhcp
+                - tag: interface
+                  value: '{#DNSMASQ.IFDESCR}'
+            - uuid: c6b53cd6990a4cdcbf473a4d8c8fd65d
+              name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv6 leases'
+              type: DEPENDENT
+              key: 'opns.dnsmasq.leases.v6[{#DNSMASQ.IF}]'
+              description: 'IPv6 leases Dnsmasq currently holds on this interface. An interface without any lease reads 0.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.["{#DNSMASQ.IF}"].v6'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: opns.dnsmasq.leases.raw
+              tags:
+                - tag: component
+                  value: dhcp
+                - tag: interface
+                  value: '{#DNSMASQ.IFDESCR}'
+            - uuid: 5682d96950a94d5e8b246af85a06067d
+              name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv4 pool size'
+              type: DEPENDENT
+              key: 'opns.dnsmasq.pool.v4[{#DNSMASQ.IF}]'
+              description: 'Addresses in the IPv4 DHCP ranges configured on this interface.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.if == "{#DNSMASQ.IF}")].pool4.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: opns.dnsmasq.ranges.raw
+              tags:
+                - tag: component
+                  value: dhcp
+                - tag: interface
+                  value: '{#DNSMASQ.IFDESCR}'
+            - uuid: f73195ce2e5d4ad28d875b7d2a2fa07d
+              name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv4 pool utilization'
+              type: CALCULATED
+              key: 'opns.dnsmasq.pool.v4.pused[{#DNSMASQ.IF}]'
+              delay: 5m
+              value_type: FLOAT
+              units: '%'
+              params: '100*last(//opns.dnsmasq.leases.v4[{#DNSMASQ.IF}])/(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])+(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])=0))'
+              description: 'IPv4 leases in percent of the IPv4 pool. An interface with only IPv6 ranges has a pool of 0 and reads 0.'
+              tags:
+                - tag: component
+                  value: dhcp
+                - tag: interface
+                  value: '{#DNSMASQ.IFDESCR}'
+              trigger_prototypes:
+                - uuid: b3df424423c7490d84a042714280e33a
+                  expression: 'min(/OPNsense by REST API/opns.dnsmasq.pool.v4.pused[{#DNSMASQ.IF}],15m)>{$OPNS.DHCP.POOL.UTIL.MAX:"{#DNSMASQ.IF}"}'
+                  name: 'Dnsmasq DHCP pool on {#DNSMASQ.IFDESCR} is filling up'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'More than {$OPNS.DHCP.POOL.UTIL.MAX:"{#DNSMASQ.IF}"} percent of the IPv4 DHCP pool on this interface has been leased for 15 minutes. New clients will soon get no address.'
+                  tags:
+                    - tag: scope
+                      value: capacity
+          master_item:
+            key: opns.dnsmasq.ranges.raw
+          lld_macro_paths:
+            - lld_macro: '{#DNSMASQ.IF}'
+              path: $.if
+            - lld_macro: '{#DNSMASQ.IFDESCR}'
+              path: $.descr
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
+        - macro: '{$OPNS.DHCP.POOL.UTIL.MAX}'
+          value: '90'
+          description: 'IPv4 DHCP pool utilisation in percent counting as filling up, sustained for 15 minutes. Per interface through context, for example {$OPNS.DHCP.POOL.UTIL.MAX:"opt1"}.'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
           value: .+
           description: 'Used for filesystem discovery. Can be overridden on the host or linked template level.'

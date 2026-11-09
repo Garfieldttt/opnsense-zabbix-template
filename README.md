@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+129 items, 17 discovery rules with 79 item prototypes, 59 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -56,6 +56,7 @@ with 9 pages.
 | Certificate validity, discovered per certificate | `trust/cert/search` |
 | The status panel the firewall shows about itself | `core/system/status` |
 | DHCP leases, active and total, v4 and v6 | `kea/leases4/search`, `kea/leases6/search` |
+| Dnsmasq DHCP leases and IPv4 pool utilisation per interface | `dnsmasq/settings/search_range`, `dnsmasq/leases/search` |
 
 ## Setup
 
@@ -114,6 +115,7 @@ read.
 | System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, `api/core/firmware/*` also covers reboot, poweroff, install and remove |
 | Services: Unbound | `page-services-unbound` | resolver statistics | **no**, `api/unbound/*` covers the whole resolver configuration |
 | System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates |
+| Services: Dnsmasq DNS/DHCP: Settings | `page-services-dnsforwarder` | Dnsmasq DHCP ranges and leases | **no**, `api/dnsmasq/*` covers the whole Dnsmasq configuration |
 | Services: DHCP: Kea(v4) and Kea(v6) | `page-dhcp-kea-v4`, `page-dhcp-kea-v6` | DHCP lease counters | **no**, the patterns cover the Kea configuration and service control |
 
 Leaving one out costs exactly the items it feeds, which then stay unsupported, and nothing
@@ -123,9 +125,10 @@ else. That is the way to trade coverage against privilege:
 - without **System: Firmware** the five firmware items, the license item and the version item
   stay unsupported. The version is also available from
   `diagnostics/system/system_information`, which Lobby: Dashboard covers
-- without **Services: Unbound**, **System: Certificate Manager** or the two **Kea** ones the
-  resolver, certificate and lease items stay unsupported. These four areas are the ones to
-  drop first if the account has to stay close to read only
+- without **Services: Unbound**, **System: Certificate Manager**, the two **Kea** ones or
+  **Services: Dnsmasq DNS/DHCP: Settings** the resolver, certificate and lease items stay
+  unsupported. These five areas are the ones to drop first if the account has to stay close to
+  read only
 
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
@@ -152,6 +155,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.LOAD.PERCORE.WARN}` | `1` | Five minute load per core, 1 means the cores are exactly saturated |
 | `{$OPNS.MEMORY.UTIL.MAX}` | `90` | Memory utilisation counting as high |
 | `{$OPNS.MBUF.UTIL.WARN}` | `80` | Share of the mbuf cluster limit counting as filling up |
+| `{$OPNS.DHCP.POOL.UTIL.MAX}` | `90` | Dnsmasq IPv4 DHCP pool utilisation counting as filling up, sustained for 15 minutes. Per interface through context |
 | `{$OPNS.SWAP.UTIL.WARN}` | `5` | Swap in use counting as a problem. A firewall should not swap at all, so this is deliberately low. Per device through macro context |
 | `{$OPNS.TEMP.CRIT}` | `80` | Sensor temperature in degrees Celsius. Per sensor through context, for example `{$OPNS.TEMP.CRIT:"dev.cpu.0.temperature"}` |
 | `{$OPNS.FS.PUSED.MAX.WARN}` | `90` | Filesystem utilisation, warning |
@@ -207,10 +211,11 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| Dnsmasq DHCP | lease counts, IPv4 pool size and utilisation per interface with a Dnsmasq DHCP range |
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+59 in total: 2 Disaster, 13 High, 13 Average, 22 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -275,7 +280,9 @@ discovered instance.
 **DHCP leases carry no trigger.** A network that addresses everything statically runs at zero
 leases forever, and a trigger on that would be wrong on exactly the installations that are
 configured most carefully. The meaningful threshold is the size of the pool, which is a local
-decision, so the number is there to be graphed and alerted on where it matters.
+decision, so the number is there to be graphed and alerted on where it matters. Dnsmasq is
+the exception: its DHCP ranges can be read from the firewall, so the pool size is known and
+the Dnsmasq DHCP discovery alerts on utilisation of the IPv4 pool rather than on the count.
 
 **The system status item** reports the code the firewall shows in its own status panel. A
 firewall with nothing pending answers 2 and "No pending messages". The other codes were not
