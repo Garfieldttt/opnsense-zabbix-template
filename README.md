@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+131 items, 16 discovery rules with 75 item prototypes, 61 triggers, 42 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -51,6 +51,7 @@ with 9 pages.
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
+| Who changed the configuration last; changes to users, groups, API keys, cron jobs and port forwards | `diagnostics/log/core/audit` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
 | Resolver: queries, cache hits and misses, prefetches, rate limited queries, recursion time, request queue | `unbound/diagnostics/stats` |
 | Certificate validity, discovered per certificate | `trust/cert/search` |
@@ -114,6 +115,7 @@ read.
 | System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, `api/core/firmware/*` also covers reboot, poweroff, install and remove |
 | Services: Unbound | `page-services-unbound` | resolver statistics | **no**, `api/unbound/*` covers the whole resolver configuration |
 | System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates |
+| Diagnostics: Logs: System | `page-diagnostics-logs-system` | configuration change audit | **no**, it also covers the system, boot, configd and web server logs |
 | Services: DHCP: Kea(v4) and Kea(v6) | `page-dhcp-kea-v4`, `page-dhcp-kea-v6` | DHCP lease counters | **no**, the patterns cover the Kea configuration and service control |
 
 Leaving one out costs exactly the items it feeds, which then stay unsupported, and nothing
@@ -210,7 +212,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+61 in total: 2 Disaster, 13 High, 13 Average, 24 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +298,15 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**Configuration changes are read from the audit log.** Every save is logged with the user, the
+address and the page or API call, for example `user root@192.0.2.1 changed configuration ... in
+/api/auth/user/add`. The Web GUI saves through the same API paths, so GUI and API changes look
+alike. Three counters search for `/api/auth/`, `/api/cron/` and `/api/firewall/d_nat/`: new or
+changed accounts and API keys, scheduled jobs and port forwards are how access is kept or
+opened, so each raises a Warning that stays until an hour has passed without further changes.
+This needs only the log privilege, not the user, cron or NAT privileges, which would let the
+monitoring account make those changes itself.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.

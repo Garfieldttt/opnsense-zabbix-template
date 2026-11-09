@@ -909,6 +909,163 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: notice
+        - uuid: e268fb80bcae4cd29606e3856beeb684
+          name: 'Configuration: last change'
+          type: HTTP_AGENT
+          key: opns.config.lastchange
+          delay: 5m
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Who saved the configuration last, from which address, and through which page or API call, read from the audit log. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1&rowCount=1&searchPhrase=changed+configuration'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.rows[0].line'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "user root@192.0.2.1 changed configuration to /conf/backup/config-1.xml in /api/x /api/x made changes"
+                  var m = /user (\S+) changed configuration to \S+ in (\S+)\s*(.*)$/.exec(String(value).trim());
+                  if (!m) { return String(value).trim(); }
+                  var what = m[3].indexOf(m[2]) === 0 ? m[3].substr(m[2].length).trim() : m[3];
+                  return m[1] + ' ' + m[2] + (what && what !== 'made changes' ? ': ' + what : '');
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: system
+        - uuid: 3816d5b07ec04574bad1c27e712bcb54
+          name: 'Configuration changes: users, groups and API keys'
+          type: HTTP_AGENT
+          key: opns.config.changes.auth
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Saves that created, changed or removed users, groups or API keys. Counts new configuration saves through /api/auth/ in the audit log since the previous poll. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=changed+configuration+/api/auth/'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: a29780d90954435b8f71538d130983d3
+              expression: 'last(/OPNsense by REST API/opns.config.changes.auth)>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/OPNsense by REST API/opns.config.changes.auth,1h)=0'
+              name: 'User accounts, groups or API keys were changed'
+              opdata: '{ITEM.LASTVALUE1} changes'
+              priority: WARNING
+              description: 'Someone added, changed or removed a user, a group membership or an API key. A new account or key is the usual way to keep access to a firewall. The item Configuration: last change names the user and address of the latest save, System, Configuration, History shows the difference. The problem clears after an hour without further changes or can be closed by hand.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 69ed9476c82d4bd395a86a347944d8e3
+          name: 'Configuration changes: cron jobs'
+          type: HTTP_AGENT
+          key: opns.config.changes.cron
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Saves that created, changed or removed scheduled jobs. Counts new configuration saves through /api/cron/ in the audit log since the previous poll. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=changed+configuration+/api/cron/'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 9c1dc6ff89e445dd9e9f0bc2bf0366cf
+              expression: 'last(/OPNsense by REST API/opns.config.changes.cron)>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/OPNsense by REST API/opns.config.changes.cron,1h)=0'
+              name: 'Scheduled jobs were changed'
+              opdata: '{ITEM.LASTVALUE1} changes'
+              priority: WARNING
+              description: 'Someone added, changed or removed a cron job. Jobs run as root, which makes them a way to keep a foothold or undo changes. The item Configuration: last change names the user and address of the latest save, System, Configuration, History shows the difference. The problem clears after an hour without further changes or can be closed by hand.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: 460c8f15b7c2480fbbee64d364d9bbba
+          name: 'Configuration changes: port forwards'
+          type: HTTP_AGENT
+          key: opns.config.changes.dnat
+          delay: 5m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Saves that created, changed or removed port forwards. Counts new configuration saves through /api/firewall/d_nat/ in the audit log since the previous poll. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/audit
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=changed+configuration+/api/firewall/d_nat/'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 69e9961b0afe4c7dbca1b6becdf3cde2
+              expression: 'last(/OPNsense by REST API/opns.config.changes.dnat)>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/OPNsense by REST API/opns.config.changes.dnat,1h)=0'
+              name: 'Port forwards were changed'
+              opdata: '{ITEM.LASTVALUE1} changes'
+              priority: WARNING
+              description: 'Someone added, changed or removed a port forward. A new forward exposes a host behind the firewall to the outside. The item Configuration: last change names the user and address of the latest save, System, Configuration, History shows the difference. The problem clears after an hour without further changes or can be closed by hand.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
         - uuid: 22b8c564642e421da100881b148de591
           name: 'CPU: Cores'
           type: DEPENDENT
