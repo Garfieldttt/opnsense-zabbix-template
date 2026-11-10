@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 17 discovery rules with 80 item prototypes, 60 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -46,6 +46,7 @@ with 9 pages.
 | CARP status per address, demotion factor, maintenance mode | `diagnostics/interface/get_vip_status` |
 | IPsec phase 1 and phase 2, per connection | `ipsec/sessions/searchPhase1`, `search_phase2` |
 | WireGuard instances and peers | `wireguard/service/show` |
+| BGP neighbours of os-frr: session state, prefixes received, uptime, resets | `quagga/diagnostics/bgpsummary` |
 | OpenVPN instances and clients | `openvpn/service/search_sessions` |
 | Services, discovered and checked | `core/service/search` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
@@ -127,6 +128,12 @@ else. That is the way to trade coverage against privilege:
   resolver, certificate and lease items stay unsupported. These four areas are the ones to
   drop first if the account has to stay close to read only
 
+`page-routing` (Routing) is needed only for BGP monitoring with the os-frr plugin. It covers
+`api/quagga/*`, the whole routing configuration including BGP neighbours and route maps, so it
+is **not** read only and is the most powerful of the optional privileges. Without the plugin or
+the privilege the API answers 404 or 403; the template reads both as no neighbours, so nothing
+is discovered and nothing reports an error.
+
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
 item. On a firewall where the plugin is not installed at all the route does not exist and the
@@ -184,6 +191,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.WG.PEER.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard peer discovery filter |
 | `{$OPNS.FS.FSNAME.MATCHES}` / `.NOT_MATCHES` | `.+` / `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Filesystem discovery filter by mount point |
 | `{$OPNS.FS.FSTYPE.MATCHES}` / `.NOT_MATCHES` | filesystem list / `^\s$` | Filesystem discovery filter by type |
+| `{$OPNS.BGP.PEER.NOT_MATCHES}` | `^$` | BGP neighbours, by address, left out of discovery, for example ones configured but not meant to be up |
 | `{$OPNS.CERT.NAME.NOT_MATCHES}` | `^$` | Certificates excluded from discovery, by description |
 | `{$OPNS.CERT.IN_USE.MATCHES}` | `1` | Which certificates are discovered, matched against the in_use flag. Set to `.*` to watch every certificate in the store |
 
@@ -207,10 +215,11 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| BGP neighbours | one entry per neighbour and address family, only with os-frr and the Routing privilege |
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+60 in total: 2 Disaster, 13 High, 14 Average, 21 Warning, 10 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +305,12 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**BGP sessions are watched per neighbour and address family.** The raw item flattens
+`show bgp summary` to one row per neighbour and family, so a neighbour carrying IPv4 and IPv6
+appears twice. A session that is not established for five minutes is a problem; every reset of
+an established session is recorded as an Info event of its own. FRR reports the time since the
+last state change also while a session is down, so the uptime item is set to 0 then.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
