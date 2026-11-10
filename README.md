@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+129 items, 16 discovery rules with 75 item prototypes, 60 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -51,6 +51,7 @@ with 9 pages.
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
+| HA configuration sync: last success, errors, changes not yet synchronised | `diagnostics/log/core/system` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
 | Resolver: queries, cache hits and misses, prefetches, rate limited queries, recursion time, request queue | `unbound/diagnostics/stats` |
 | Certificate validity, discovered per certificate | `trust/cert/search` |
@@ -127,6 +128,10 @@ else. That is the way to trade coverage against privilege:
   resolver, certificate and lease items stay unsupported. These four areas are the ones to
   drop first if the account has to stay close to read only
 
+`page-diagnostics-logs-system` (Diagnostics: Logs: System) feeds the HA configuration sync
+items, which read the system log. It covers reading the audit, configd, boot, system and web
+server logs. Without it those items stay unsupported.
+
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
 item. On a firewall where the plugin is not installed at all the route does not exist and the
@@ -169,6 +174,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.DNS.RECURSION.WARN}` | `1` | Average recursion time in seconds counting as slow |
 | `{$OPNS.DNS.HITRATIO.MIN}` | `60` | Cache hit ratio in percent below which the resolver is reported as working harder than it should |
 | `{$OPNS.CERT.EXPIRE.DAYS}` | `21d` | Lead time before a certificate expires |
+| `{$OPNS.HA.SYNC.DELAY}` | `25h` | Time a configuration change may stay unsynchronised to the HA peer. The default suits a nightly sync job |
 
 ### Discovery filters and switches
 
@@ -210,7 +216,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+60 in total: 2 Disaster, 13 High, 13 Average, 23 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +302,16 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**HA configuration sync is read from the system log.** The firewall that pushes its
+configuration logs every successful sync and every failure. The template takes the time of the
+last success and counts new failures, and compares the last success with the configuration
+change timestamp: a configuration saved after the last sync and not pushed within
+`{$OPNS.HA.SYNC.DELAY}` means the backup would take over with an older configuration. The
+backup never logs a sync of its own, so its items stay empty and the trigger cannot fire there.
+The system log keeps about a month; a firewall that has not synced for longer than that looks
+like one that does not sync at all. The HA status API was not used: its privilege also allows
+restarting services on the peer.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
