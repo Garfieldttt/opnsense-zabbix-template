@@ -3645,6 +3645,19 @@ zabbix_export:
                 value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
           lifetime: 1h
+          overrides:
+            - name: 'Roaming instance'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#WG.INSTANCE}'
+                    value: '{$OPNS.VPN.ROAMING.INSTANCE.MATCHES}'
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: 'went idle after being active'
+                  discover: NO_DISCOVER
           item_prototypes:
             - uuid: 85297aa97ec44bdd9bf7f82fde8cad9b
               name: 'WireGuard instance {#WG.INSTANCE}: newest handshake age'
@@ -3681,7 +3694,7 @@ zabbix_export:
                   name: 'WireGuard instance {#WG.INSTANCE} went idle after being active'
                   opdata: 'last handshake {ITEM.LASTVALUE1} ago'
                   priority: AVERAGE
-                  description: 'No peer of this instance has completed a handshake for longer than {$OPNS.VPN.IDLE.TIME}, while during the {$OPNS.VPN.ACTIVE.TIME} before that it never did. A tunnel that has never been up, or that has not been up for long, does not raise this, which keeps an automatic restart from looping. Quiet on a CARP backup. Set {$OPNS.VPN.RESTART:"<interface>"} to 0 for instances whose peers come and go, such as phones. The tags vpn_type and vpn_if name the instance for the restart script described in the README.'
+                  description: 'No peer of this instance has completed a handshake for longer than {$OPNS.VPN.IDLE.TIME}, while during the {$OPNS.VPN.ACTIVE.TIME} before that it never did. A tunnel that has never been up, or that has not been up for long, does not raise this, which keeps an automatic restart from looping. Quiet on a CARP backup. Roaming instances ({$OPNS.VPN.ROAMING.INSTANCE.MATCHES}) get no such trigger; {$OPNS.VPN.RESTART:"<interface>"}=0 switches it off for a site instance. The tags vpn_type and vpn_if name the instance for the restart script described in the README.'
                   manual_close: 'YES'
                   tags:
                     - tag: vpn_type
@@ -3781,6 +3794,32 @@ zabbix_export:
                 value: '{$OPNS.WG.INSTANCE.NOT_MATCHES}'
                 operator: NOT_MATCHES_REGEX
           lifetime: 1h
+          overrides:
+            - name: 'Roaming instance'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#WG.IFNAME}'
+                    value: '{$OPNS.VPN.ROAMING.INSTANCE.MATCHES}'
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: 'has no recent handshake'
+                  discover: NO_DISCOVER
+            - name: 'Site instance'
+              step: '2'
+              filter:
+                conditions:
+                  - macro: '{#WG.IFNAME}'
+                    value: '{$OPNS.VPN.ROAMING.INSTANCE.MATCHES}'
+                    operator: NOT_MATCHES_REGEX
+                    formulaid: A
+              operations:
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: LIKE
+                  value: 'roaming peer'
+                  discover: NO_DISCOVER
           item_prototypes:
             - uuid: ae1c2f757a064802ab184f1426a754d1
               name: 'WireGuard peer {#WG.NAME}: status'
@@ -3798,12 +3837,6 @@ zabbix_export:
                   value: '{#WG.NAME}'
                 - tag: interface
                   value: '{#WG.IF}'
-              trigger_prototypes:
-                - uuid: 6dcbf31f2e834b95816ecf10e21e389d
-                  expression: 'find(/OPNsense by REST API/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.CARP.BACKUP.QUIET}=0)'
-                  name: 'WireGuard peer {#WG.NAME} is not online'
-                  priority: HIGH
-                  description: 'WireGuard peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
             - uuid: 5f0a748e70144af49b8b0766569b76cc
               name: 'WireGuard peer {#WG.NAME}: latest handshake age'
               type: DEPENDENT
@@ -3817,7 +3850,7 @@ zabbix_export:
                   parameters:
                     - |
                       if (value === null || value === '' || value === 'null') {
-                          return 0;
+                          return 999999999;
                       }
                       return value;
               master_item:
@@ -3827,6 +3860,26 @@ zabbix_export:
                   value: '{#WG.NAME}'
                 - tag: interface
                   value: '{#WG.IF}'
+              description: 'Seconds since the last handshake of this peer. 999999999 means no handshake since the instance started. Alerts use this age rather than the peer status, whose online limit of 300 s is fixed in OPNsense and too tight for clients that rekey every 300 s.'
+              trigger_prototypes:
+                - uuid: ec809843bffd4167bbcfa0a148fdddb1
+                  expression: 'last(/OPNsense by REST API/opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"])>{$OPNS.VPN.PEER.SITE.MAXAGE:"{#WG.NAME}"} and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.CARP.BACKUP.QUIET}=0)'
+                  name: 'WireGuard peer {#WG.NAME} has no recent handshake'
+                  opdata: 'last handshake {ITEM.LASTVALUE1} ago'
+                  priority: HIGH
+                  description: 'No handshake with this site peer for longer than {$OPNS.VPN.PEER.SITE.MAXAGE} (5m by default, context by peer name), or never since the instance started. A tunnel between sites renews its handshake every two minutes while it is up. Quiet on a CARP backup.'
+                  tags:
+                    - tag: peer_class
+                      value: site
+                - uuid: 2c749a73944049e9bcd66fbc63591877
+                  expression: 'last(/OPNsense by REST API/opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"])>{$OPNS.VPN.PEER.ROAMING.MAXAGE:"{#WG.NAME}"} and last(/OPNsense by REST API/opns.wireguard.peer.latest_handshake_age["{#WG.PUBKEY}"])<999999999 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.CARP.BACKUP.QUIET}=0)'
+                  name: 'WireGuard roaming peer {#WG.NAME} has been silent'
+                  opdata: 'last handshake {ITEM.LASTVALUE1} ago'
+                  priority: INFO
+                  description: 'A peer of a roaming instance (name matching {$OPNS.VPN.ROAMING.INSTANCE.MATCHES}) has not completed a handshake for longer than {$OPNS.VPN.PEER.ROAMING.MAXAGE} (30m by default). Phones and laptops do this when they sleep or lose signal, so it is information only. Peers that never connected since the instance started raise nothing.'
+                  tags:
+                    - tag: peer_class
+                      value: roaming
             - uuid: dbc90391a7bb435cb39696cd94934ab8
               name: 'WireGuard peer {#WG.NAME}: latest handshake'
               type: DEPENDENT
@@ -5037,6 +5090,15 @@ zabbix_export:
         - macro: '{$OPNS.PORT}'
           value: '443'
           description: 'HTTPS API Port'
+        - macro: '{$OPNS.VPN.PEER.ROAMING.MAXAGE}'
+          value: 30m
+          description: 'Time without a handshake after which a peer of a roaming instance raises an Info problem. Context by peer name.'
+        - macro: '{$OPNS.VPN.PEER.SITE.MAXAGE}'
+          value: 5m
+          description: 'Time without a handshake after which a site peer (any peer of an instance that is not roaming) raises a High problem. Context by peer name, e.g. {$OPNS.VPN.PEER.SITE.MAXAGE:"Barncroft"}.'
+        - macro: '{$OPNS.VPN.ROAMING.INSTANCE.MATCHES}'
+          value: ^$
+          description: 'Regex on WireGuard and AmneziaWG instance names whose peers are roaming clients such as phones, e.g. ^Roaming$. Their peers get the relaxed Info alert, and the instances are left out of the idle restart.'
         - macro: '{$OPNS.VPN.ACTIVE.TIME}'
           value: 1h
           description: 'How long a WireGuard or AmneziaWG instance must have been in use before going idle counts as a failure. Supports context by interface, e.g. {$OPNS.VPN.ACTIVE.TIME:"wg1"}.'
