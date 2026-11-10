@@ -3172,11 +3172,11 @@ zabbix_export:
                   value: time
               trigger_prototypes:
                 - uuid: c5883717464f4dc8a528c7810bd8402e
-                  expression: 'max(/OPNsense by REST API/opns.chrony.sources.reachable[{#CHRONY}],30m)<{$OPNS.CHRONY.SOURCES.MIN} and last(/OPNsense by REST API/opns.chrony.sources.configured[{#CHRONY}])>=0'
+                  expression: 'max(/OPNsense by REST API/opns.chrony.sources.reachable[{#CHRONY}],30m)<{$OPNS.CHRONY.SOURCES.MIN} and max(/OPNsense by REST API/opns.chrony.sources.reachable[{#CHRONY}],30m)<last(/OPNsense by REST API/opns.chrony.sources.configured[{#CHRONY}])'
                   name: 'Chrony has fewer than {$OPNS.CHRONY.SOURCES.MIN} reachable sources'
                   opdata: '{ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
                   priority: WARNING
-                  description: 'For half an hour fewer than {$OPNS.CHRONY.SOURCES.MIN} time sources answered. With one source left chronyd cannot outvote a wrong one, and with none it runs free. Check outbound NTP and, for NTS sources, the key exchange on TCP 4460.'
+                  description: 'For half an hour fewer than {$OPNS.CHRONY.SOURCES.MIN} time sources answered, and fewer than are configured, so a firewall set up with a single source is only reported when that one fails. With one source left chronyd cannot outvote a wrong one, and with none it runs free. Check outbound NTP and, for NTS sources, the key exchange on TCP 4460.'
                   manual_close: 'YES'
                   dependencies:
                     - name: 'Chrony is not synchronised'
