@@ -2880,6 +2880,434 @@ zabbix_export:
                 - tag: scope
                   value: notice
       discovery_rules:
+        - uuid: 4ac50e6eb05c46309cb5c93777b134b1
+          name: Chrony
+          type: HTTP_AGENT
+          key: opns.chrony.discovery
+          delay: 1h
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Discovers chronyd from the os-chrony plugin when the API key holds the Services: Chrony privilege. Without the plugin or the privilege the API answers 404 or 403 and nothing is created. The privilege also allows changing the chrony settings and stopping the service, which is why it is optional. Items are disabled as soon as chronyd stops answering and removed after a day; service discovery reports the stopped daemon.'
+          timeout: 15s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/chrony/service/chronytracking
+          status_codes: '200,403,404'
+          lifetime_type: DELETE_AFTER
+          lifetime: 1d
+          enabled_lifetime_type: DISABLE_IMMEDIATELY
+          item_prototypes:
+            - uuid: bce9ce7d31c84d8c838c11fd6191b6b4
+              name: 'Chrony: tracking (raw)'
+              type: HTTP_AGENT
+              key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              authtype: BASIC
+              username: '{$OPNS.KEY}'
+              password: '{$OPNS.SECRET}'
+              description: 'chronyc tracking, parsed to JSON.'
+              timeout: 15s
+              url: https://{HOST.IP}:{$OPNS.PORT}/api/chrony/service/chronytracking
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // chronyc tracking as text; "506 Cannot talk to daemon" when chronyd is down
+                      var r = String(JSON.parse(value).response || ''), o = {synced: 0}, m;
+                      if ((m = /Reference ID\s*:\s*(\S+)\s*\(([^)]*)\)/.exec(r))) { o.reference = m[2]; }
+                      if ((m = /Stratum\s*:\s*(\d+)/.exec(r))) { o.stratum = +m[1]; }
+                      // "System time : 0.000014608 seconds slow of NTP time": slow is behind, reported negative
+                      if ((m = /System time\s*:\s*([\d.]+) seconds (slow|fast)/.exec(r))) { o.offset = (m[2] === 'fast' ? 1 : -1) * m[1] * 1000; }
+                      if ((m = /Root dispersion\s*:\s*([\d.]+)/.exec(r))) { o.dispersion = m[1] * 1000; }
+                      if ((m = /Leap status\s*:\s*(.+)/.exec(r))) { o.leap = m[1].trim(); }
+                      o.synced = o.leap && o.leap !== 'Not synchronised' && o.stratum > 0 && o.stratum < 16 ? 1 : 0;
+                      return JSON.stringify(o);
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: ad24788869f94fde94eb062777a46200
+              name: 'Chrony: sources (raw)'
+              type: HTTP_AGENT
+              key: 'opns.chrony.sources.raw[{#CHRONY}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              authtype: BASIC
+              username: '{$OPNS.KEY}'
+              password: '{$OPNS.SECRET}'
+              description: 'chronyc sources, summarised to counts and the selected source.'
+              timeout: 15s
+              url: https://{HOST.IP}:{$OPNS.PORT}/api/chrony/service/chronysources
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // chronyc sources: "^* name  stratum poll reach lastrx sample"; reach is octal, 0 means no answer in the last eight polls
+                      var lines = String(JSON.parse(value).response || '').split('\n'), o = {configured: 0, reachable: 0, falsetickers: 0, selected: ''};
+                      for (var i = 0; i < lines.length; i++) {
+                          var m = /^([\^=#])([*+\-?x~])\s+(\S+)\s+\d+\s+\d+\s+([0-7]+)\s/.exec(lines[i]);
+                          if (!m) { continue; }
+                          o.configured++;
+                          if (m[4] !== '0') { o.reachable++; }
+                          if (m[2] === 'x') { o.falsetickers++; }
+                          if (m[2] === '*') { o.selected = m[3]; }
+                      }
+                      return JSON.stringify(o);
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: 5ed17e8ceded45748b0c1ce650b496e4
+              name: 'Chrony: NTS (raw)'
+              type: HTTP_AGENT
+              key: 'opns.chrony.nts.raw[{#CHRONY}]'
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              authtype: BASIC
+              username: '{$OPNS.KEY}'
+              password: '{$OPNS.SECRET}'
+              description: 'chronyc authdata, summarised to NTS sources and those without cookies.'
+              timeout: 15s
+              url: https://{HOST.IP}:{$OPNS.PORT}/api/chrony/service/chronyauthdata
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // chronyc -N authdata: name mode keyid type klen last atmp nak cook clen. An NTS source without cookies
+                      // has no working key exchange, so its time cannot be authenticated and it is not used.
+                      var lines = String(JSON.parse(value).response || '').split('\n'), o = {nts: 0, failing: 0, failed: []};
+                      for (var i = 0; i < lines.length; i++) {
+                          var f = lines[i].trim().split(/\s+/);
+                          if (f.length < 10 || f[1] !== 'NTS') { continue; }
+                          o.nts++;
+                          if (f[8] === '0') { o.failing++; o.failed.push(f[0]); }
+                      }
+                      o.failed = o.failed.join(' ');
+                      return JSON.stringify(o);
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: 5a8f9e2b5eaa4cc9b1d0c037533dc5dd
+              name: 'Chrony: Synchronised'
+              type: DEPENDENT
+              key: 'opns.chrony.synced[{#CHRONY}]'
+              delay: '0'
+              valuemap:
+                name: NTP sync state
+              description: 'Whether chronyd follows a time source: 1 when the leap status is not Not synchronised and the stratum is valid.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.synced'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 15m
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+              trigger_prototypes:
+                - uuid: 3f6fa9386b0c4fe998c3d9e1c192d7e6
+                  expression: 'last(/OPNsense by REST API/opns.chrony.synced[{#CHRONY}])=0'
+                  name: 'Chrony is not synchronised'
+                  priority: AVERAGE
+                  description: 'chronyd follows no time source, so the clock runs free and every client that takes its time from this firewall drifts with it. Right after a start this lasts a minute or two. Check Chrony: Reachable sources and Chrony: NTS sources failing.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: d7a7ae39ca624a92aaf3d2934fd76107
+              name: 'Chrony: Clock offset'
+              type: DEPENDENT
+              key: 'opns.chrony.offset[{#CHRONY}]'
+              delay: '0'
+              value_type: FLOAT
+              units: ms
+              description: 'How far the system clock is from NTP time as chronyd estimates it; negative is behind.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.offset'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+              trigger_prototypes:
+                - uuid: 1eadaef9a7534581b5df87d758d7acb3
+                  expression: 'min(/OPNsense by REST API/opns.chrony.offset[{#CHRONY}],#3)>{$OPNS.NTP.OFFSET.WARN} or max(/OPNsense by REST API/opns.chrony.offset[{#CHRONY}],#3)<-{$OPNS.NTP.OFFSET.WARN}'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'abs(last(/OPNsense by REST API/opns.chrony.offset[{#CHRONY}]))<={$OPNS.NTP.OFFSET.WARN}'
+                  name: 'Chrony clock offset is high'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'The clock was more than {$OPNS.NTP.OFFSET.WARN} ms away from NTP time in three checks in a row. chronyd corrects slowly by design, so a large offset that stays means its sources disagree or the clock was set by hand.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Chrony is not synchronised'
+                      expression: 'last(/OPNsense by REST API/opns.chrony.synced[{#CHRONY}])=0'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 9e70cdfec5b94441a693037aaa8397de
+              name: 'Chrony: Stratum'
+              type: DEPENDENT
+              key: 'opns.chrony.stratum[{#CHRONY}]'
+              delay: '0'
+              description: 'Distance from a reference clock. Clients of this firewall see one more.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.stratum'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: e038223a1c414c9c8903921c7c6c6e59
+              name: 'Chrony: Root dispersion'
+              type: DEPENDENT
+              key: 'opns.chrony.dispersion[{#CHRONY}]'
+              delay: '0'
+              value_type: FLOAT
+              units: ms
+              description: 'Accumulated uncertainty of the time towards the reference clock.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.dispersion'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: 6274b938c8d445afba7ca003e8935189
+              name: 'Chrony: Reference'
+              type: DEPENDENT
+              key: 'opns.chrony.reference[{#CHRONY}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Source chronyd currently follows.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.reference'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: 3ec33a8c9c5c43cab8eb488d1621d4eb
+              name: 'Chrony: Leap status'
+              type: DEPENDENT
+              key: 'opns.chrony.leap[{#CHRONY}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Normal, Insert second, Delete second or Not synchronised.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.leap'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'opns.chrony.tracking.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: 1b396f1bfdf440c19758d854c87e050f
+              name: 'Chrony: Configured sources'
+              type: DEPENDENT
+              key: 'opns.chrony.sources.configured[{#CHRONY}]'
+              delay: '0'
+              description: 'Servers, pools and peers chronyd knows about.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.configured'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'opns.chrony.sources.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: a30c539dd2f94035b21e6456907ad4c5
+              name: 'Chrony: Reachable sources'
+              type: DEPENDENT
+              key: 'opns.chrony.sources.reachable[{#CHRONY}]'
+              delay: '0'
+              description: 'Sources that answered at least once in their last eight polls.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.reachable'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'opns.chrony.sources.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+              trigger_prototypes:
+                - uuid: c5883717464f4dc8a528c7810bd8402e
+                  expression: 'max(/OPNsense by REST API/opns.chrony.sources.reachable[{#CHRONY}],30m)<{$OPNS.CHRONY.SOURCES.MIN} and last(/OPNsense by REST API/opns.chrony.sources.configured[{#CHRONY}])>=0'
+                  name: 'Chrony has fewer than {$OPNS.CHRONY.SOURCES.MIN} reachable sources'
+                  opdata: '{ITEM.LASTVALUE1} of {ITEM.LASTVALUE2}'
+                  priority: WARNING
+                  description: 'For half an hour fewer than {$OPNS.CHRONY.SOURCES.MIN} time sources answered. With one source left chronyd cannot outvote a wrong one, and with none it runs free. Check outbound NTP and, for NTS sources, the key exchange on TCP 4460.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'Chrony is not synchronised'
+                      expression: 'last(/OPNsense by REST API/opns.chrony.synced[{#CHRONY}])=0'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 99a3fdcff95749c989af27bdeec54827
+              name: 'Chrony: Falsetickers'
+              type: DEPENDENT
+              key: 'opns.chrony.sources.falsetickers[{#CHRONY}]'
+              delay: '0'
+              description: 'Sources chronyd rejects because their time disagrees with the majority.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.falsetickers'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'opns.chrony.sources.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+              trigger_prototypes:
+                - uuid: baa4c3293f494808b56569e285cd5213
+                  expression: 'min(/OPNsense by REST API/opns.chrony.sources.falsetickers[{#CHRONY}],30m)>0'
+                  name: 'Chrony rejects a time source as wrong'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: WARNING
+                  description: 'For half an hour at least one source has reported time that disagrees with the others. A broken or spoofed server looks like this; chronyd ignores it, but its redundancy is gone.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: 13a00bf8a8af4fbba9a52d05f6c0cd8b
+              name: 'Chrony: Selected source'
+              type: DEPENDENT
+              key: 'opns.chrony.sources.selected[{#CHRONY}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Source marked with * in chronyc sources.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.selected'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'opns.chrony.sources.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: 0666d3748b644a13bad5c0e5c6058bfd
+              name: 'Chrony: NTS sources'
+              type: DEPENDENT
+              key: 'opns.chrony.nts.total[{#CHRONY}]'
+              delay: '0'
+              description: 'Sources that use Network Time Security.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.nts'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: 'opns.chrony.nts.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+            - uuid: 0b949ecc4cb2443b9ddc40565e301c4f
+              name: 'Chrony: NTS sources failing'
+              type: DEPENDENT
+              key: 'opns.chrony.nts.failing[{#CHRONY}]'
+              delay: '0'
+              description: 'NTS sources without cookies, so the key exchange did not work and their time is not used.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.failing'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: 'opns.chrony.nts.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+              trigger_prototypes:
+                - uuid: 72a8b6c8c09941cc91f11ee0547b5faa
+                  expression: 'min(/OPNsense by REST API/opns.chrony.nts.failing[{#CHRONY}],30m)>0 and length(last(/OPNsense by REST API/opns.chrony.nts.failed[{#CHRONY}]))>=0'
+                  name: 'Chrony NTS authentication is failing'
+                  opdata: '{ITEM.LASTVALUE2}'
+                  priority: WARNING
+                  description: 'For half an hour at least one NTS source has had no cookies, so its key exchange on TCP 4460 failed or its certificate was rejected. Its time is not used. Blocked outbound TCP 4460 or a certificate the firewall cannot verify are the usual reasons.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: e181c72494cb4067b225cad70b279390
+              name: 'Chrony: NTS sources failing, names'
+              type: DEPENDENT
+              key: 'opns.chrony.nts.failed[{#CHRONY}]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'Names of the NTS sources without cookies.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.failed'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: 'opns.chrony.nts.raw[{#CHRONY}]'
+              tags:
+                - tag: component
+                  value: time
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // 200 with chronyc text when the plugin is installed and the key may read it, 403 or 404 otherwise.
+                  // A daemon that does not answer is left to service discovery, which reports it as not running.
+                  var r = '';
+                  try { r = String(JSON.parse(value).response || ''); } catch (e) {}
+                  return JSON.stringify(r.indexOf('Reference ID') >= 0 ? [{'{#CHRONY}': 'chrony'}] : []);
         - uuid: 504c286823af4f10aab2af2d048252eb
           name: 'Disk Discovery'
           type: DEPENDENT
@@ -4916,6 +5344,9 @@ zabbix_export:
             - lld_macro: '{#TYPE}'
               path: $.type
       macros:
+        - macro: '{$OPNS.CHRONY.SOURCES.MIN}'
+          value: '2'
+          description: 'Reachable chrony sources below which redundancy counts as lost.'
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
