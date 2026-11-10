@@ -2917,11 +2917,11 @@ zabbix_export:
                   value: crowdsec
               trigger_prototypes:
                 - uuid: dd31cf2107cf49929086410e2b5f6dc1
-                  expression: 'max(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}],30m)<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
+                  expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
                   name: 'CrowdSec {#CS.FAMILY} blocklist is empty'
                   opdata: '{ITEM.LASTVALUE1} entries'
                   priority: WARNING
-                  description: 'The CrowdSec bouncer has put no addresses into {#CS.TABLE} for half an hour, so CrowdSec blocks nothing even when its engine runs. Check the service crowdsec and the bouncer log under Services, CrowdSec. A new installation receives its first community blocklist about two hours after it registers. Set {$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"} to 0 where an empty table is normal.'
+                  description: 'The CrowdSec bouncer has no addresses in {#CS.TABLE}, so CrowdSec blocks nothing even when its engine runs. Check the service crowdsec and the bouncer log under Services, CrowdSec. A new installation receives its first community blocklist about two hours after it registers. Set {$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"} to 0 where an empty table is normal.'
                   manual_close: 'YES'
                   tags:
                     - tag: scope
@@ -2937,7 +2937,7 @@ zabbix_export:
                   manual_close: 'YES'
                   dependencies:
                     - name: 'CrowdSec {#CS.FAMILY} blocklist is empty'
-                      expression: 'max(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}],30m)<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
+                      expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
                   tags:
                     - tag: scope
                       value: security
@@ -2963,10 +2963,10 @@ zabbix_export:
                   value: crowdsec
               trigger_prototypes:
                 - uuid: 3288ef153a36473087eeae0e260c94ea
-                  expression: 'max(/OPNsense by REST API/opns.crowdsec.rules[{#CS.TABLE}],#2)=0'
+                  expression: 'last(/OPNsense by REST API/opns.crowdsec.rules[{#CS.TABLE}])=0'
                   name: 'No firewall rules use the CrowdSec {#CS.FAMILY} blocklist'
                   priority: AVERAGE
-                  description: 'CrowdSec is installed but the running ruleset has no rule that blocks addresses from {#CS.TABLE}, in two checks in a row. The firewall bouncer was disabled in the CrowdSec settings or the ruleset failed to load, and nothing CrowdSec decides is enforced.'
+                  description: 'CrowdSec is installed but the running ruleset has no rule that blocks addresses from {#CS.TABLE}. The firewall bouncer was disabled in the CrowdSec settings or the ruleset failed to load, and nothing CrowdSec decides is enforced.'
                   manual_close: 'YES'
                   tags:
                     - tag: scope
