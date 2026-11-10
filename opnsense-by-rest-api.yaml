@@ -290,7 +290,7 @@ zabbix_export:
                               remote_as: p.remoteAs, state: p.state,
                               established: p.state === 'Established' ? 1 : 0,
                               prefixes: typeof p.pfxRcd === 'number' ? p.pfxRcd : 0,
-                              uptime: Math.round((p.peerUptimeMsec || 0) / 1000),
+                              uptime: p.state === 'Established' ? Math.round((p.peerUptimeMsec || 0) / 1000) : 0,
                               dropped: p.connectionsDropped || 0
                           });
                       }
