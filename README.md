@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 18 discovery rules with 86 item prototypes, 60 triggers, 46 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -46,6 +46,7 @@ with 9 pages.
 | CARP status per address, demotion factor, maintenance mode | `diagnostics/interface/get_vip_status` |
 | IPsec phase 1 and phase 2, per connection | `ipsec/sessions/searchPhase1`, `search_phase2` |
 | WireGuard instances and peers | `wireguard/service/show` |
+| AmneziaWG instances and peers, when the plugin is installed | `amneziawg/service/show` |
 | OpenVPN instances and clients | `openvpn/service/search_sessions` |
 | Services, discovered and checked | `core/service/search` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
@@ -127,6 +128,12 @@ else. That is the way to trade coverage against privilege:
   resolver, certificate and lease items stay unsupported. These four areas are the ones to
   drop first if the account has to stay close to read only
 
+`page-amneziawg-diagnostics` (VPN: AmneziaWG: Status) is needed only with the os-amneziawg
+plugin. Like its WireGuard counterpart it covers `api/amneziawg/service/*`, which includes
+service control, so it is **not** read only. Without the plugin or the privilege the API answers
+404 or 403; the template reads both as an empty list, so nothing is discovered and nothing
+reports an error.
+
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
 item. On a firewall where the plugin is not installed at all the route does not exist and the
@@ -182,6 +189,8 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.OPENVPN.CONTROL}` | `1` | Set to 0, per instance through context, to silence the OpenVPN down trigger |
 | `{$OPNS.WG.INSTANCE.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard instance discovery filter |
 | `{$OPNS.WG.PEER.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | WireGuard peer discovery filter |
+| `{$OPNS.AWG.INSTANCE.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | AmneziaWG instance discovery filter |
+| `{$OPNS.AWG.PEER.MATCHES}` / `.NOT_MATCHES` | `.+` / `^$` | AmneziaWG peer discovery filter |
 | `{$OPNS.FS.FSNAME.MATCHES}` / `.NOT_MATCHES` | `.+` / `^(/dev\|/sys\|/run\|/proc\|.+/shm$)` | Filesystem discovery filter by mount point |
 | `{$OPNS.FS.FSTYPE.MATCHES}` / `.NOT_MATCHES` | filesystem list / `^\s$` | Filesystem discovery filter by type |
 | `{$OPNS.CERT.NAME.NOT_MATCHES}` | `^$` | Certificates excluded from discovery, by description |
@@ -204,13 +213,15 @@ answer is HTTP 404, which is why the item ships disabled.
 | IPsec Phase1 Discovery | tunnels, with phase 2 per connection |
 | WireGuard Instance Discovery | instances |
 | WireGuard Peer Discovery | peers, traffic and handshake age |
+| AmneziaWG Instance Discovery | instances, when os-amneziawg is installed |
+| AmneziaWG Peer Discovery | peers, traffic and handshake age |
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+60 in total: 2 Disaster, 15 High, 13 Average, 21 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +307,11 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**AmneziaWG mirrors WireGuard.** os-amneziawg is a modified copy of the WireGuard plugin, adding
+traffic obfuscation, and its status endpoint answers in the same format. Its items, triggers and
+filter macros are a one to one copy of the WireGuard ones under `opns.amneziawg.*` and
+`{$OPNS.AWG.*}`, so a change to one should be made to the other.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
