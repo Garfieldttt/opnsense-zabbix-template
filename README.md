@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+127 items, 17 discovery rules with 77 item prototypes, 61 triggers, 45 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -48,6 +48,7 @@ with 9 pages.
 | WireGuard instances and peers | `wireguard/service/show` |
 | OpenVPN instances and clients | `openvpn/service/search_sessions` |
 | Services, discovered and checked | `core/service/search` |
+| CrowdSec blocklist size and the rules enforcing it, when the plugin is installed | `firewall/alias/get_table_size`, `diagnostics/firewall/pf_statistics/rules` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
@@ -169,6 +170,8 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.DNS.RECURSION.WARN}` | `1` | Average recursion time in seconds counting as slow |
 | `{$OPNS.DNS.HITRATIO.MIN}` | `60` | Cache hit ratio in percent below which the resolver is reported as working harder than it should |
 | `{$OPNS.CERT.EXPIRE.DAYS}` | `21d` | Lead time before a certificate expires |
+| `{$OPNS.CROWDSEC.BLOCKLIST.MIN}` | `1` | Entries a CrowdSec blocklist must hold before it counts as empty. Per table through context; `0` for `crowdsec6_blocklists` |
+| `{$OPNS.CROWDSEC.BLOCKLIST.DROP}` | `50` | Percentage of its daily average below which a CrowdSec blocklist counts as having shrunk sharply |
 
 ### Discovery filters and switches
 
@@ -207,10 +210,11 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| CrowdSec | blocklist entries and block rules per table, only when the crowdsec service exists |
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+61 in total: 2 Disaster, 13 High, 14 Average, 23 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +300,17 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**CrowdSec is checked from the firewall side.** The plugin's API sits behind a single
+privilege that also allows deleting decisions and changing settings, so the template does not
+use it. The engine's run state comes from service discovery; the bouncer is watched through
+what it maintains, the pf tables `crowdsec_blocklists` and `crowdsec6_blocklists`, and through
+the rules that use them. A stopped bouncer does not show in the service list, and switching
+off the bouncer's rules leaves the engine running while nothing is enforced; both show here.
+The discovery keys on the crowdsec service, so firewalls without the plugin get no items. A
+new installation receives its first community blocklist about two hours after it registers
+and reports an empty IPv4 blocklist until then. Bans and blocked traffic are deliberately not
+counted; that is CrowdSec's own job.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
