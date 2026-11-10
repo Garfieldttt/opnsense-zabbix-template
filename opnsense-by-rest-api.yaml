@@ -1210,7 +1210,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          description: 'Master item. Lease table of the Dnsmasq DHCP server, reduced to IPv4 and IPv6 lease counts per interface.'
+          description: 'Master item. Lease table of the Dnsmasq DHCP server, reduced to IPv4 (all and dynamic) and IPv6 lease counts per interface.'
           timeout: 30s
           url: https://{HOST.IP}:{$OPNS.PORT}/api/dnsmasq/leases/search
           tags:
@@ -1223,8 +1223,11 @@ zabbix_export:
                   var rows = JSON.parse(value).rows || [], out = {};
                   for (var i = 0; i < rows.length; i++) {
                       var k = String(rows[i].if_name || rows[i]['if'] || '');
-                      if (!out[k]) { out[k] = {v4: 0, v6: 0}; }
-                      if (String(rows[i].address).indexOf(':') >= 0) { out[k].v6++; } else { out[k].v4++; }
+                      if (!out[k]) { out[k] = {v4: 0, v4dyn: 0, v6: 0}; }
+                      if (String(rows[i].address).indexOf(':') >= 0) { out[k].v6++; continue; }
+                      out[k].v4++;
+                      // static mappings normally sit outside the ranges and do not use up the pool
+                      if (String(rows[i].lease_type) !== 'static') { out[k].v4dyn++; }
                   }
                   return JSON.stringify(out);
         - uuid: 515b2eca849b446680debc2f8686a774
@@ -5005,6 +5008,24 @@ zabbix_export:
                   value: dhcp
                 - tag: interface
                   value: '{#DNSMASQ.IFDESCR}'
+            - uuid: e415c1bdb43741ce9fa02b929bf5e3a2
+              name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv4 dynamic leases'
+              type: DEPENDENT
+              key: 'opns.dnsmasq.leases.v4.dynamic[{#DNSMASQ.IF}]'
+              description: 'IPv4 leases handed out from the DHCP ranges on this interface, without static mappings. This is what fills the pool.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.["{#DNSMASQ.IF}"].v4dyn'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+              master_item:
+                key: opns.dnsmasq.leases.raw
+              tags:
+                - tag: component
+                  value: dhcp
+                - tag: interface
+                  value: '{#DNSMASQ.IFDESCR}'
             - uuid: c6b53cd6990a4cdcbf473a4d8c8fd65d
               name: 'Dnsmasq DHCP {#DNSMASQ.IFDESCR}: IPv6 leases'
               type: DEPENDENT
@@ -5049,8 +5070,8 @@ zabbix_export:
               delay: 5m
               value_type: FLOAT
               units: '%'
-              params: '100*last(//opns.dnsmasq.leases.v4[{#DNSMASQ.IF}])/(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])+(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])=0))'
-              description: 'IPv4 leases in percent of the IPv4 pool. An interface with only IPv6 ranges has a pool of 0 and reads 0.'
+              params: '100*last(//opns.dnsmasq.leases.v4.dynamic[{#DNSMASQ.IF}])/(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])+(last(//opns.dnsmasq.pool.v4[{#DNSMASQ.IF}])=0))'
+              description: 'Dynamic IPv4 leases in percent of the IPv4 pool; static mappings are left out because they normally lie outside the ranges. An interface with only IPv6 ranges has a pool of 0 and reads 0.'
               tags:
                 - tag: component
                   value: dhcp

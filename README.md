@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-129 items, 17 discovery rules with 79 item prototypes, 59 triggers, 43 macros and a dashboard
+129 items, 17 discovery rules with 80 item prototypes, 59 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
