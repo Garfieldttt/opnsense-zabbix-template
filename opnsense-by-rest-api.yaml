@@ -873,6 +873,45 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: availability
+        - uuid: 391b89c5fcda4a1bb40c8f8bbb1207b4
+          name: 'System: Clock difference to Zabbix server'
+          type: DEPENDENT
+          key: opns.clock.diff
+          delay: '0'
+          value_type: FLOAT
+          units: s
+          description: 'Firewall clock minus the Zabbix server clock, in seconds. Works whichever time daemon runs, ntpd, chrony or none. The firewall reports its time with a time zone abbreviation that cannot be resolved reliably, so whole quarter hours are taken as time zone and only the rest counts: a drift of up to seven and a half minutes is measured, a clock off by exactly an hour is not. Resolution is about a second, and the Zabbix server clock must not take its time from this firewall, otherwise both drift together.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "Tue Nov 10 6:10:37 GMT 2026", local time with a zone abbreviation
+                  var m = JSON.parse(value).datetime.match(
+                      /^\w{3}\s+(\w{3})\s+(\d{1,2})\s+(\d{1,2}):(\d{2}):(\d{2})\s+\S+\s+(\d{4})$/);
+                  if (m === null) { throw 'cannot read firewall time: ' + value; }
+                  var months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+                  var d = Date.UTC(+m[6], months[m[1]], +m[2], +m[3], +m[4], +m[5]) / 1000 - Date.now() / 1000;
+                  // the firewall truncates to whole seconds, half a second evens that out
+                  d = d + 0.5 - Math.round(d / 900) * 900;
+                  return Math.round(d * 10) / 10;
+          master_item:
+            key: opns.raw.load
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: b553cc8ebb024e79811eea4be9f12dbc
+              expression: 'min(/OPNsense by REST API/opns.clock.diff,#3)>{$OPNS.CLOCK.DIFF.MAX} or max(/OPNsense by REST API/opns.clock.diff,#3)<-{$OPNS.CLOCK.DIFF.MAX}'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'abs(last(/OPNsense by REST API/opns.clock.diff))<={$OPNS.CLOCK.DIFF.MAX}'
+              name: 'Clock differs from the Zabbix server'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'The firewall clock was more than {$OPNS.CLOCK.DIFF.MAX} seconds away from the Zabbix server clock in three checks in a row. Either the firewall lost its time source or the Zabbix server did; the NTP or chrony items tell which. A wrong clock breaks certificate checks, IPsec and log correlation, and clients that take their time from the firewall follow it.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: e02ce9f81cc14063a7b1c446fb3af9aa
           name: 'OPNsense: Configuration last changed'
           type: DEPENDENT
@@ -4916,6 +4955,9 @@ zabbix_export:
             - lld_macro: '{#TYPE}'
               path: $.type
       macros:
+        - macro: '{$OPNS.CLOCK.DIFF.MAX}'
+          value: '10'
+          description: 'Seconds the firewall clock may differ from the Zabbix server clock.'
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
