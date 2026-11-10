@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 16 discovery rules with 75 item prototypes, 58 triggers, 47 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -175,6 +175,9 @@ answer is HTTP 404, which is why the item ships disabled.
 | Macro | Default | Purpose |
 |-------|---------|---------|
 | `{$OPNS.IF.CONTROL}` | `1` | Set to 0, per interface through context, to silence the interface down trigger |
+| `{$OPNS.CARP.BACKUP.QUIET}` | `1` | VPN instances, VPN peers and BGP sessions are not reported as down while the firewall is CARP backup. Set to 0 to report them anyway |
+| `{$OPNS.IF.BACKUP.QUIET}` | `0`, `1` for `regex:"^(wg\|awg)[0-9]+$"` | Interfaces, through context, whose down state is not reported on a CARP backup |
+| `{$OPNS.SERVICE.BACKUP.QUIET}` | `0`, `1` for `regex:"^(wireguard\|amneziawg\|mdns-repeater)"` | Services, through context, allowed to be stopped on a CARP backup |
 | `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from discovery |
 | `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
 | `{$OPNS.OPENVPN.ID.NOT_MATCHES}` | `^$` | OpenVPN instances excluded from discovery, sessions of an excluded instance go with it |
@@ -296,6 +299,14 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**A CARP backup is not a broken master.** Instances that depend on CARP, WireGuard tunnels
+for example, are down on the backup by design, and some services only run on the master.
+CARP: Node role reads Master, Backup, Mixed or None from the virtual addresses. While it reads
+Backup, the triggers for VPN instances and peers and for BGP sessions stay quiet, and so do the
+interface and service triggers for interfaces and services named in the regex context of
+`{$OPNS.IF.BACKUP.QUIET}` and `{$OPNS.SERVICE.BACKUP.QUIET}`. After a failover the new master
+reports them as usual. Standalone firewalls read None and are not affected.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
