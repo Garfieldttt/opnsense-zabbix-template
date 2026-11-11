@@ -2540,17 +2540,27 @@ zabbix_export:
           type: DEPENDENT
           key: opns.system.status
           delay: '0'
-          description: Overall status the firewall reports about itself. 2 is the healthy state observed on a firewall with nothing pending. The remaining codes were not observed, which is why the trigger fires on anything other than 2 rather than claiming to know them, and why the message is carried as text next to it.
+          description: 'Overall status the firewall reports about itself, as OPNsense''s SystemStatusCode: 2 OK, 1 notice, 0 warning, -1 error. The API gives the number 2 while no subsystem has a status entry and the code name (OK, NOTICE, WARNING, ERROR) once one does; both forms are read. The trigger fires on anything other than 2, and the message is carried as text next to it.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.metadata.system.status
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // The integer 2 comes only while no subsystem has a status entry; once one has, the API
+                  // names the code instead. Map the names to OPNsense's SystemStatusCode values.
+                  var codes = {ERROR: -1, WARNING: 0, NOTICE: 1, OK: 2};
+                  var v = String(value).trim().toUpperCase();
+                  if (codes.hasOwnProperty(v)) { return codes[v]; }
+                  if (/^-?\d+$/.test(v)) { return v; }
+                  throw 'unknown system status: ' + value;
           master_item:
             key: opns.system.status.raw
           tags:
             - tag: component
               value: system
-          value_type: UNSIGNED
+          value_type: FLOAT
           triggers:
             - uuid: d7b07fe6976f49248dd488535b475f86
               expression: last(/OPNsense by REST API/opns.system.status)<>2
