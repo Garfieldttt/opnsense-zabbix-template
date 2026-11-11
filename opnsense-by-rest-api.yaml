@@ -1990,7 +1990,14 @@ zabbix_export:
                       for (var c = 0; c < s.length; c++) { k = (k * 31 + s.charCodeAt(c)) & 0xffffffff; }
                       h = (h ^ k) >>> 0;
                   }
+                  // rules that use the CrowdSec blocklist tables, per table; the tables appear as <name:entries>
+                  var crowdsec = {};
+                  for (var n = 0; n < names.length; n++) {
+                      var cs = /<(crowdsec6?_blocklists)[:>]/.exec(names[n]);
+                      if (cs) { crowdsec[cs[1]] = (crowdsec[cs[1]] || 0) + 1; }
+                  }
                   return JSON.stringify({
+                      crowdsec: crowdsec,
                       filter: names.length,
                       nat: Object.keys(nat).length,
                       unused: unused,
@@ -2880,6 +2887,106 @@ zabbix_export:
                 - tag: scope
                   value: notice
       discovery_rules:
+        - uuid: 75b25ab53d6a44319aa1756aa3fb9deb
+          name: CrowdSec
+          type: DEPENDENT
+          key: opns.crowdsec.discovery
+          delay: '0'
+          description: 'Discovers the CrowdSec blocklist tables when the os-crowdsec plugin is installed, so firewalls without it get no items. Checks that the bouncer keeps its blocklists filled and that the firewall rules using them are loaded; the run state of the CrowdSec engine is covered by service discovery. Reads the existing table size and ruleset items, so the CrowdSec API privilege is not needed: it also allows deleting decisions and changing settings.'
+          lifetime: 1d
+          item_prototypes:
+            - uuid: 4ccd6668c83c46bbb9f102ca31bd83a3
+              name: 'CrowdSec: {#CS.FAMILY} blocklist entries'
+              type: DEPENDENT
+              key: 'opns.crowdsec.blocklist.entries[{#CS.TABLE}]'
+              delay: '0'
+              description: 'Addresses in the pf table {#CS.TABLE} that the CrowdSec firewall bouncer fills from local decisions and the community blocklist. A table that is missing counts as empty.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.details["{#CS.TABLE}"].count'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.alias.raw
+              tags:
+                - tag: component
+                  value: crowdsec
+              trigger_prototypes:
+                - uuid: dd31cf2107cf49929086410e2b5f6dc1
+                  expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
+                  name: 'CrowdSec {#CS.FAMILY} blocklist is empty'
+                  opdata: '{ITEM.LASTVALUE1} entries'
+                  priority: WARNING
+                  description: 'The CrowdSec bouncer has no addresses in {#CS.TABLE}, so CrowdSec blocks nothing even when its engine runs. Check the service crowdsec and the bouncer log under Services, CrowdSec. A new installation receives its first community blocklist about two hours after it registers. Set {$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"} to 0 where an empty table is normal.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: be8dfcf4e9814d559311ea27d2ce9d6e
+                  expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])<{$OPNS.CROWDSEC.BLOCKLIST.DROP}/100*avg(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}],1d) and avg(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}],1d)>=100'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])>={$OPNS.CROWDSEC.BLOCKLIST.DROP}/100*avg(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}],1d)'
+                  name: 'CrowdSec {#CS.FAMILY} blocklist shrank sharply'
+                  opdata: '{ITEM.LASTVALUE1} entries'
+                  priority: WARNING
+                  description: 'The table {#CS.TABLE} holds less than {$OPNS.CROWDSEC.BLOCKLIST.DROP}% of its daily average. A restarted bouncer that has not reloaded the community blocklist, removed blocklist subscriptions or decisions deleted by hand look like this. Tables averaging under 100 entries are not checked.'
+                  manual_close: 'YES'
+                  dependencies:
+                    - name: 'CrowdSec {#CS.FAMILY} blocklist is empty'
+                      expression: 'last(/OPNsense by REST API/opns.crowdsec.blocklist.entries[{#CS.TABLE}])<{$OPNS.CROWDSEC.BLOCKLIST.MIN:"{#CS.TABLE}"}'
+                  tags:
+                    - tag: scope
+                      value: security
+            - uuid: d065c6b9cc1c4de49b7e19c6606abf97
+              name: 'CrowdSec: {#CS.FAMILY} block rules loaded'
+              type: DEPENDENT
+              key: 'opns.crowdsec.rules[{#CS.TABLE}]'
+              delay: '0'
+              description: 'Rules in the running ruleset that block addresses from {#CS.TABLE}. The plugin loads one inbound and one outbound rule per table while the bouncer is enabled.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.crowdsec["{#CS.TABLE}"]'
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: opns.pf.rules.raw
+              tags:
+                - tag: component
+                  value: crowdsec
+              trigger_prototypes:
+                - uuid: 3288ef153a36473087eeae0e260c94ea
+                  expression: 'last(/OPNsense by REST API/opns.crowdsec.rules[{#CS.TABLE}])=0'
+                  name: 'No firewall rules use the CrowdSec {#CS.FAMILY} blocklist'
+                  priority: AVERAGE
+                  description: 'CrowdSec is installed but the running ruleset has no rule that blocks addresses from {#CS.TABLE}. The firewall bouncer was disabled in the CrowdSec settings or the ruleset failed to load, and nothing CrowdSec decides is enforced.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+          master_item:
+            key: opns.services.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value).rows || [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].id === 'crowdsec') {
+                          return JSON.stringify([
+                              {'{#CS.TABLE}': 'crowdsec_blocklists', '{#CS.FAMILY}': 'IPv4'},
+                              {'{#CS.TABLE}': 'crowdsec6_blocklists', '{#CS.FAMILY}': 'IPv6'}
+                          ]);
+                      }
+                  }
+                  return '[]';
         - uuid: 504c286823af4f10aab2af2d048252eb
           name: 'Disk Discovery'
           type: DEPENDENT
@@ -4918,6 +5025,15 @@ zabbix_export:
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
+        - macro: '{$OPNS.CROWDSEC.BLOCKLIST.DROP}'
+          value: '50'
+          description: 'Percentage of its daily average below which a CrowdSec blocklist counts as having shrunk sharply.'
+        - macro: '{$OPNS.CROWDSEC.BLOCKLIST.MIN}'
+          value: '1'
+          description: 'Entries a CrowdSec blocklist must hold; fewer counts as empty. Per table through context.'
+        - macro: '{$OPNS.CROWDSEC.BLOCKLIST.MIN:"crowdsec6_blocklists"}'
+          value: '0'
+          description: 'The IPv6 community blocklist is small and can be empty, so it is not checked by default.'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
           value: .+
           description: 'Used for filesystem discovery. Can be overridden on the host or linked template level.'
