@@ -276,6 +276,28 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: fba5b7e8b14c46a48ca8e9e6b23b0eae
+          name: 'RAW AmneziaWG'
+          type: HTTP_AGENT
+          key: opns.amneziawg.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Instances and peers of the os-amneziawg plugin, a WireGuard variant with traffic obfuscation. Needs the VPN: AmneziaWG: Status privilege. Without the plugin or the privilege the API answers 404 or 403, which is taken as an empty list, so nothing is discovered and nothing reports an error.'
+          status_codes: '200,403,404'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var d = JSON.parse(value);
+                  return JSON.stringify(d.rows || []);
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/amneziawg/service/show'
+          tags:
+            - tag: component
+              value: raw
         - uuid: 69bf5ee4ea6048109296a1981df4b277
           name: 'ARC Memory'
           type: DEPENDENT
@@ -3888,6 +3910,293 @@ zabbix_export:
                       }
                   }
                   return JSON.stringify(peers);
+        - uuid: d8e34b42166c498bbb7ce66c103583ef
+          name: 'AmneziaWG Instance Discovery'
+          type: DEPENDENT
+          key: opns.amneziawg.instance.discovery
+          filter:
+            conditions:
+              - macro: '{#AWG.INSTANCE}'
+                value: '{$OPNS.AWG.INSTANCE.MATCHES}'
+              - macro: '{#AWG.INSTANCE}'
+                value: '{$OPNS.AWG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1h
+          item_prototypes:
+            - uuid: 4e4190d0d17a44a0951a503f524dcd81
+              name: 'AmneziaWG instance {#AWG.INSTANCE}: status'
+              type: DEPENDENT
+              key: 'opns.amneziawg.instance.status[{#AWG.IF}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#AWG.IF}")].status.first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.INSTANCE}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+              trigger_prototypes:
+                - uuid: 6512bca7e9034fb3b2052c4912b23f18
+                  expression: 'find(/OPNsense by REST API/opns.amneziawg.instance.status[{#AWG.IF}],5m,"eq","up")=0'
+                  name: 'AmneziaWG instance {#AWG.INSTANCE} is down'
+                  priority: HIGH
+            - uuid: 840cba04d76042b18e9aa30e07740b8b
+              name: 'AmneziaWG instance {#AWG.INSTANCE}: listen port'
+              type: DEPENDENT
+              key: 'opns.amneziawg.instance.listen_port[{#AWG.IF}]'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#AWG.IF}")].["listen-port"].first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.INSTANCE}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: 2cf357e69e864ebd815ebef483373470
+              name: 'AmneziaWG instance {#AWG.INSTANCE}: public key'
+              type: DEPENDENT
+              key: 'opns.amneziawg.instance.public_key[{#AWG.IF}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.if == "{#AWG.IF}")].["public-key"].first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.INSTANCE}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+          master_item:
+            key: opns.amneziawg.raw
+          lld_macro_paths:
+            - lld_macro: '{#AWG.IF}'
+              path: $.if
+            - lld_macro: '{#AWG.INSTANCE}'
+              path: $.name
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var instances = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'interface') {
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i].if;
+                          }
+                          instances.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(instances);
+        - uuid: bf1259f8505e4e498fa4f8cec63e8b98
+          name: 'AmneziaWG Peer Discovery'
+          type: DEPENDENT
+          key: opns.amneziawg.peer.discovery
+          filter:
+            conditions:
+              - macro: '{#AWG.NAME}'
+                value: '{$OPNS.AWG.PEER.MATCHES}'
+              - macro: '{#AWG.NAME}'
+                value: '{$OPNS.AWG.PEER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+              - macro: '{#AWG.IFNAME}'
+                value: '{$OPNS.AWG.INSTANCE.MATCHES}'
+              - macro: '{#AWG.IFNAME}'
+                value: '{$OPNS.AWG.INSTANCE.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+          lifetime: 1h
+          item_prototypes:
+            - uuid: 6082134ad3634ff3b781731350edd868
+              name: 'AmneziaWG peer {#AWG.NAME}: status'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.status["{#AWG.PUBKEY}"]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["peer-status"].first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+              trigger_prototypes:
+                - uuid: 2cca0aca870a41b0ad7085a63df5b913
+                  expression: 'find(/OPNsense by REST API/opns.amneziawg.peer.status["{#AWG.PUBKEY}"],5m,"eq","online")=0'
+                  name: 'AmneziaWG peer {#AWG.NAME} is not online'
+                  priority: HIGH
+                  description: 'AmneziaWG peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
+            - uuid: cf50aa3717ca4b4f942b2a9bac8845b9
+              name: 'AmneziaWG peer {#AWG.NAME}: latest handshake age'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.latest_handshake_age["{#AWG.PUBKEY}"]'
+              units: s
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["latest-handshake-age"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: cc914183f4684c19b22ab1bd97741fcf
+              name: 'AmneziaWG peer {#AWG.NAME}: latest handshake'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.latest_handshake["{#AWG.PUBKEY}"]'
+              units: unixtime
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["latest-handshake"].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      if (value === null || value === '' || value === 'null') {
+                          return 0;
+                      }
+                      return value;
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: 7b598927db6f4dc4bc91169028fd0b34
+              name: 'AmneziaWG peer {#AWG.NAME}: endpoint'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.endpoint["{#AWG.PUBKEY}"]'
+              value_type: TEXT
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].endpoint.first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: e803f4dea9b6400cb12728df22b7e3c0
+              name: 'AmneziaWG peer {#AWG.NAME}: bytes received'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.transfer_rx["{#AWG.PUBKEY}"]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["transfer-rx"].first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: 20e355771cf744b0a3fc35c2171c1b17
+              name: 'AmneziaWG peer {#AWG.NAME}: bytes received per second'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.transfer_rx.rate["{#AWG.PUBKEY}"]'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["transfer-rx"].first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: b37389c853e549e089fade2677d174b7
+              name: 'AmneziaWG peer {#AWG.NAME}: bytes sent'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.transfer_tx["{#AWG.PUBKEY}"]'
+              units: B
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["transfer-tx"].first()'
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+            - uuid: 25c44d2d6f9e40a9bd56ad6991447c5d
+              name: 'AmneziaWG peer {#AWG.NAME}: bytes sent per second'
+              type: DEPENDENT
+              key: 'opns.amneziawg.peer.transfer_tx.rate["{#AWG.PUBKEY}"]'
+              value_type: FLOAT
+              units: Bps
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["public-key"] == "{#AWG.PUBKEY}")].["transfer-tx"].first()'
+                - type: CHANGE_PER_SECOND
+              master_item:
+                key: opns.amneziawg.raw
+              tags:
+                - tag: AmneziaWG
+                  value: '{#AWG.NAME}'
+                - tag: interface
+                  value: '{#AWG.IF}'
+          master_item:
+            key: opns.amneziawg.raw
+          lld_macro_paths:
+            - lld_macro: '{#AWG.IF}'
+              path: $.if
+            - lld_macro: '{#AWG.IFNAME}'
+              path: $.ifname
+            - lld_macro: '{#AWG.NAME}'
+              path: $.name
+            - lld_macro: '{#AWG.PUBKEY}'
+              path: $.public_key
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  var peers = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].type === 'peer') {
+                          rows[i].public_key = rows[i]['public-key'];
+                          if (rows[i].ifname === '' || rows[i].ifname === null) {
+                              rows[i].ifname = rows[i].if;
+                          }
+                          if (rows[i].name === '') {
+                              rows[i].name = rows[i]['public-key'];
+                          }
+                          peers.push(rows[i]);
+                      }
+                  }
+                  return JSON.stringify(peers);
         - uuid: 6b2beeec77c24db1ac4ad533cb70388d
           name: 'IPsec Phase1 Discovery'
           type: DEPENDENT
@@ -4916,6 +5225,19 @@ zabbix_export:
             - lld_macro: '{#TYPE}'
               path: $.type
       macros:
+        - macro: '{$OPNS.AWG.INSTANCE.MATCHES}'
+          value: .+
+          description: 'Regex filter for AmneziaWG instance discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.AWG.INSTANCE.NOT_MATCHES}'
+          value: ^$
+          description: 'Regex filter for excluding AmneziaWG instances from discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.AWG.PEER.MATCHES}'
+          value: .+
+          description: 'Regex filter for AmneziaWG peer discovery. Can be overridden on the host or linked template level.'
+        - macro: '{$OPNS.AWG.PEER.NOT_MATCHES}'
+          value: ^$
+          description: 'Regex filter for excluding AmneziaWG peers from discovery. Can be overridden on the host or linked template level.'
+        # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
