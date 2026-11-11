@@ -1950,6 +1950,76 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: notice
+        - uuid: 9d6cd9226ad049be962b3bb9bb569723
+          name: 'RAW Firewall rules'
+          type: HTTP_AGENT
+          key: opns.fw.rules.raw
+          delay: 5m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Master item. Firewall rules as the rule editor lists them, from firewall/filter/search_rule, reduced to the rules a person wrote. Rules OPNsense generates itself (anti lockout, default deny, plugin rules) are left out; rules from the legacy editor still pending migration are kept. Needs the Firewall: Rules privilege, which also permits editing rules.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/firewall/filter/search_rule
+          tags:
+            - tag: component
+              value: raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // Generated rules carry is_automatic. Legacy user rules carry it too, but point at the
+                  // migration page, which tells them apart from the rules OPNsense writes itself.
+                  var rows = JSON.parse(value).rows || [], total = 0, disabled = 0, rules = [];
+                  for (var i = 0; i < rows.length; i++) {
+                      var r = rows[i];
+                      if (r.is_automatic && r.ref !== 'ui/firewall/migration') { continue; }
+                      total++;
+                      var on = String(r.enabled) === '1' ? 1 : 0;
+                      if (!on) { disabled++; }
+                      rules.push({uuid: String(r.uuid), descr: String(r.description || r.uuid),
+                                  iface: String(r['interface'] || 'floating'), enabled: on});
+                  }
+                  return JSON.stringify({total: total, disabled: disabled, rules: rules});
+        - uuid: 0319d2355c124c2e9de08290a7b9c41b
+          name: 'Firewall rules: configured'
+          type: DEPENDENT
+          key: opns.fw.rules.configured
+          delay: '0'
+          description: 'Rules written by a person, enabled or not. Rules OPNsense generates are not counted.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.fw.rules.raw
+          tags:
+            - tag: component
+              value: firewall
+        - uuid: 399fd4b077e6417fb98f70396eafdf3f
+          name: 'Firewall rules: disabled'
+          type: DEPENDENT
+          key: opns.fw.rules.disabled
+          delay: '0'
+          description: 'Rules written by a person that are switched off. A disabled rule is not loaded into pf, so it neither passes nor blocks anything.'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.disabled
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: opns.fw.rules.raw
+          tags:
+            - tag: component
+              value: firewall
         - uuid: 880f175ff8e14a579d38138783e445df
           name: 'OPNsense: pf ruleset (raw)'
           type: HTTP_AGENT
@@ -4915,6 +4985,70 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#TYPE}'
               path: $.type
+        - uuid: 13b1eef1ee694c3a8d851d4ae4194c03
+          name: Firewall rules
+          type: DEPENDENT
+          key: opns.fw.rules.discovery
+          delay: '0'
+          description: 'One entry per firewall rule a person wrote, keyed by its UUID, so a rule keeps its history when it is renamed or moved.'
+          item_prototypes:
+            - uuid: 34e49ac0f1974102a1d89b00319c92ea
+              name: 'Firewall rule {#RULE.DESCR} ({#RULE.IF}): State'
+              type: DEPENDENT
+              key: 'opns.fw.rule.enabled[{#RULE.UUID}]'
+              delay: '0'
+              valuemap:
+                name: Rule state
+              description: '1 while the rule is enabled, 0 while it is switched off.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$.rules[?(@.uuid == "{#RULE.UUID}")].enabled.first()'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: opns.fw.rules.raw
+              tags:
+                - tag: component
+                  value: firewall
+                - tag: interface
+                  value: '{#RULE.IF}'
+              trigger_prototypes:
+                - uuid: faccf8d85f5d4fe097b310d03b8d0861
+                  expression: 'last(/OPNsense by REST API/opns.fw.rule.enabled[{#RULE.UUID}],#1)=0 and last(/OPNsense by REST API/opns.fw.rule.enabled[{#RULE.UUID}],#2)=1'
+                  name: 'Firewall rule {#RULE.DESCR} ({#RULE.IF}) was disabled'
+                  priority: WARNING
+                  description: 'The rule was switched off. A disabled rule is not loaded into pf, so a disabled block rule lets traffic through without anything else changing. Check that this was intended, then close the problem.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+                - uuid: 05a06d55f45044c19a6de8425c4f4cd0
+                  expression: 'last(/OPNsense by REST API/opns.fw.rule.enabled[{#RULE.UUID}],#1)=1 and last(/OPNsense by REST API/opns.fw.rule.enabled[{#RULE.UUID}],#2)=0'
+                  name: 'Firewall rule {#RULE.DESCR} ({#RULE.IF}) was enabled'
+                  priority: INFO
+                  description: 'A rule that was switched off is active again. Switching an old pass rule back on can reopen access that was closed on purpose.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: security
+          master_item:
+            key: opns.fw.rules.raw
+          lld_macro_paths:
+            - lld_macro: '{#RULE.UUID}'
+              path: $.uuid
+            - lld_macro: '{#RULE.DESCR}'
+              path: $.descr
+            - lld_macro: '{#RULE.IF}'
+              path: $.iface
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.rules
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
@@ -7791,6 +7925,13 @@ zabbix_export:
                       value: CERTHC
       # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
       valuemaps:
+        - uuid: 82fe6a2425a54d2697030e6a3be69e54
+          name: Rule state
+          mappings:
+            - value: '0'
+              newvalue: Disabled
+            - value: '1'
+              newvalue: Enabled
         - uuid: 1454fbfd0a6345b38f4889113c9fde4c
           name: Enabled state
           mappings:
