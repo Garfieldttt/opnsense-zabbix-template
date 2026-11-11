@@ -873,6 +873,79 @@ zabbix_export:
               tags:
                 - tag: scope
                   value: availability
+        - uuid: 74a0d8be434143ba8857993d7b2e701a
+          name: 'HA: Last configuration sync'
+          type: HTTP_AGENT
+          key: opns.ha.sync.last
+          delay: 10m
+          units: unixtime
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'When this firewall last pushed its configuration to the HA peer successfully, from the system log. Stays empty on firewalls that do not sync, such as the backup. The log keeps about a month, so a firewall that has not synced for longer reads as one that never did. Like the configuration change timestamp, the firewall local time is read as UTC, which keeps the two comparable. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/system
+          request_method: POST
+          posts: 'current=1&rowCount=1&searchPhrase=Filter+sync+successfully+completed'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$.rows[0].timestamp'
+              error_handler: DISCARD_VALUE
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // "2026-11-10T00:01:21", local time without zone
+                  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/.exec(value);
+                  if (m === null) { throw 'cannot read sync timestamp: ' + value; }
+                  return Math.round(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          tags:
+            - tag: component
+              value: ha
+        - uuid: 6f3ad1cc617b45088f27a1e8cb568e99
+          name: 'HA: Configuration sync errors'
+          type: HTTP_AGENT
+          key: opns.ha.sync.errors
+          delay: 10m
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'Failed attempts to push the configuration to the HA peer since the previous poll: the peer did not answer, refused the credentials or reported an error. Needs the Diagnostics: Logs: System privilege.'
+          timeout: 30s
+          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/log/core/system
+          request_method: POST
+          posts: 'current=1000000&rowCount=1&searchPhrase=filter_synchronize+occurred'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.total
+            - type: SIMPLE_CHANGE
+              parameters:
+                - ''
+            - type: IN_RANGE
+              parameters:
+                - '0'
+                - ''
+              error_handler: DISCARD_VALUE
+          tags:
+            - tag: component
+              value: ha
+          triggers:
+            - uuid: 29df352409e6459ea126329a7328be55
+              expression: 'last(/OPNsense by REST API/opns.ha.sync.errors)>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/OPNsense by REST API/opns.ha.sync.errors,1h)=0'
+              name: 'HA configuration sync failed'
+              opdata: '{ITEM.LASTVALUE1} errors'
+              priority: WARNING
+              description: 'Pushing the configuration to the HA peer failed. The backup keeps its old configuration and takes over with it when this firewall fails. The system log names the cause; a changed password of the sync user, an unreachable peer and differing versions are the usual ones. Clears after an hour without further errors or can be closed by hand.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: availability
         - uuid: e02ce9f81cc14063a7b1c446fb3af9aa
           name: 'OPNsense: Configuration last changed'
           type: DEPENDENT
@@ -4989,6 +5062,9 @@ zabbix_export:
         - macro: '{$OPNS.DNS.RECURSION.WARN}'
           value: '1'
           description: Average recursion time in seconds that counts as slow. Uncached answers from a healthy upstream resolver stay well below one second.
+        - macro: '{$OPNS.HA.SYNC.DELAY}'
+          value: 25h
+          description: 'Time a configuration change may stay unsynchronised to the HA peer. The default suits a nightly sync job.'
         - macro: '{$OPNS.IF.CONTROL}'
           value: '1'
           description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
@@ -7819,3 +7895,14 @@ zabbix_export:
               newvalue: Stopped
             - value: '1'
               newvalue: Running
+  triggers:
+    - uuid: d26a2fd530c64104b3a6dd23fe086bef
+      expression: 'last(/OPNsense by REST API/opns.config.changed)-last(/OPNsense by REST API/opns.ha.sync.last)>{$OPNS.HA.SYNC.DELAY}'
+      name: 'Configuration changed since the last HA sync'
+      opdata: 'synced {ITEM.LASTVALUE2}'
+      priority: WARNING
+      description: 'The configuration was saved more than {$OPNS.HA.SYNC.DELAY} after the last successful push to the HA peer, so the backup runs an older configuration and would take over with it. Only firewalls that have synced within the log retention are checked. Changes outside the synchronised sections also count, so a save that the peer does not need still asks for a sync. Clears with the next successful sync.'
+      manual_close: 'YES'
+      tags:
+        - tag: scope
+          value: availability
