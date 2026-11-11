@@ -258,6 +258,47 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: f2fd69d6e7c74f718f20eaff271d032b
+          name: 'RAW BGP'
+          type: HTTP_AGENT
+          key: opns.bgp.raw
+          delay: 1m
+          history: '0'
+          value_type: TEXT
+          trends: '0'
+          authtype: BASIC
+          username: '{$OPNS.KEY}'
+          password: '{$OPNS.SECRET}'
+          description: 'BGP neighbours of the os-frr plugin per address family, flattened to a list. Needs the Routing privilege, which also allows changing the whole routing configuration. Without the plugin or the privilege the API answers 404 or 403, which is taken as an empty list, so nothing is discovered and nothing reports an error.'
+          timeout: 15s
+          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/quagga/diagnostics/bgpsummary'
+          status_codes: '200,403,404'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // {"response": {"ipv4Unicast": {"peers": {"192.0.2.1": {...}}}, "ipv6Unicast": ...}}
+                  var r = {}, out = [];
+                  try { r = JSON.parse(value).response || {}; } catch (e) {}
+                  if (typeof r !== 'object' || r === null) { r = {}; }
+                  for (var af in r) {
+                      var peers = (r[af] && r[af].peers) || {};
+                      for (var ip in peers) {
+                          var p = peers[ip];
+                          out.push({
+                              id: af + ' ' + ip, af: af, peer: ip, desc: p.desc || ip,
+                              remote_as: p.remoteAs, state: p.state,
+                              established: p.state === 'Established' ? 1 : 0,
+                              prefixes: typeof p.pfxRcd === 'number' ? p.pfxRcd : 0,
+                              uptime: p.state === 'Established' ? Math.round((p.peerUptimeMsec || 0) / 1000) : 0,
+                              dropped: p.connectionsDropped || 0
+                          });
+                      }
+                  }
+                  return JSON.stringify(out);
+          tags:
+            - tag: component
+              value: raw
         - uuid: 726beb61d9504190b8359280984c577a
           name: 'RAW WireGuard'
           type: HTTP_AGENT
@@ -2880,6 +2921,168 @@ zabbix_export:
                 - tag: scope
                   value: notice
       discovery_rules:
+        - uuid: 344a1aad70374c7da064ed8a9551fb21
+          name: 'BGP neighbours'
+          type: DEPENDENT
+          key: opns.bgp.discovery
+          delay: '0'
+          description: 'One entry per BGP neighbour and address family from the os-frr plugin. Empty without the plugin or the Routing privilege.'
+          filter:
+            evaltype: AND
+            conditions:
+              - macro: '{#BGP.PEER}'
+                value: '{$OPNS.BGP.PEER.NOT_MATCHES}'
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          lifetime: 7d
+          item_prototypes:
+            - uuid: 6911c4b538294d48be036449cfb323a4
+              name: 'BGP {#BGP.NAME}: Session state'
+              type: DEPENDENT
+              key: 'opns.bgp.state["{#BGP.ID}"]'
+              delay: '0'
+              value_type: CHAR
+              trends: '0'
+              description: 'FRR session state: Idle, Connect, Active, OpenSent, OpenConfirm or Established.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id == "{#BGP.ID}")].state.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.bgp.raw
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: bgp-peer
+                  value: '{#BGP.PEER}'
+            - uuid: a110c21a24c844caaa49e16fd42e68b0
+              name: 'BGP {#BGP.NAME}: Established'
+              type: DEPENDENT
+              key: 'opns.bgp.established["{#BGP.ID}"]'
+              delay: '0'
+              valuemap:
+                name: BGP session
+              description: '1 while the session is established, 0 otherwise.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id == "{#BGP.ID}")].established.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.bgp.raw
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: bgp-peer
+                  value: '{#BGP.PEER}'
+              trigger_prototypes:
+                - uuid: b3ccc0a2f616469eb836d71f52ace5bb
+                  expression: 'max(/OPNsense by REST API/opns.bgp.established["{#BGP.ID}"],5m)=0 and length(last(/OPNsense by REST API/opns.bgp.state["{#BGP.ID}"]))>0'
+                  name: 'BGP session {#BGP.NAME} is down'
+                  opdata: '{ITEM.LASTVALUE2}'
+                  priority: AVERAGE
+                  description: 'The BGP session has not been established for five minutes, so no routes are exchanged with this neighbour. The session state tells how far it gets: Active or Connect means no TCP connection to port 179, OpenSent or OpenConfirm points at a mismatch in AS numbers or capabilities. Set {$OPNS.BGP.PEER.NOT_MATCHES} to leave out neighbours that are not meant to be up.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: availability
+            - uuid: 2956e5cc545548b7aaa9fa6cb5568587
+              name: 'BGP {#BGP.NAME}: Prefixes received'
+              type: DEPENDENT
+              key: 'opns.bgp.prefixes["{#BGP.ID}"]'
+              delay: '0'
+              description: 'Prefixes accepted from the neighbour.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id == "{#BGP.ID}")].prefixes.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.bgp.raw
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: bgp-peer
+                  value: '{#BGP.PEER}'
+            - uuid: cdf3d501b74e439b90f3d05b03ce02a6
+              name: 'BGP {#BGP.NAME}: Uptime'
+              type: DEPENDENT
+              key: 'opns.bgp.uptime["{#BGP.ID}"]'
+              delay: '0'
+              units: s
+              description: 'Time since the session was established, 0 while it is down.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id == "{#BGP.ID}")].uptime.first()'
+                  error_handler: DISCARD_VALUE
+              master_item:
+                key: opns.bgp.raw
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: bgp-peer
+                  value: '{#BGP.PEER}'
+            - uuid: 3a114d9cf3024326b3b6d66dce5acc02
+              name: 'BGP {#BGP.NAME}: Connections dropped'
+              type: DEPENDENT
+              key: 'opns.bgp.dropped["{#BGP.ID}"]'
+              delay: '0'
+              description: 'Times an established session has ended since FRR started.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$[?(@.id == "{#BGP.ID}")].dropped.first()'
+                  error_handler: DISCARD_VALUE
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.bgp.raw
+              tags:
+                - tag: component
+                  value: bgp
+                - tag: bgp-peer
+                  value: '{#BGP.PEER}'
+              trigger_prototypes:
+                - uuid: a8037560584e48248b4f69e74bdf3604
+                  expression: 'change(/OPNsense by REST API/opns.bgp.dropped["{#BGP.ID}"])>0'
+                  recovery_mode: NONE
+                  name: 'BGP session {#BGP.NAME} was reset'
+                  priority: INFO
+                  description: 'An established session ended and the neighbour has to send its routes again. A single reset follows maintenance on either side; repeated resets point at an unstable link or hold timers that are too short.'
+                  manual_close: 'YES'
+                  type: MULTIPLE
+                  tags:
+                    - tag: scope
+                      value: notice
+          master_item:
+            key: opns.bgp.raw
+          lld_macro_paths:
+            - lld_macro: '{#BGP.AF}'
+              path: $.af
+            - lld_macro: '{#BGP.ID}'
+              path: $.id
+            - lld_macro: '{#BGP.NAME}'
+              path: $.name
+            - lld_macro: '{#BGP.PEER}'
+              path: $.peer
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var rows = JSON.parse(value);
+                  for (var i = 0; i < rows.length; i++) {
+                      rows[i].name = rows[i].desc + (rows[i].desc === rows[i].peer ? '' : ' (' + rows[i].peer + ')') + ' ' + rows[i].af;
+                  }
+                  return JSON.stringify(rows);
         - uuid: 504c286823af4f10aab2af2d048252eb
           name: 'Disk Discovery'
           type: DEPENDENT
@@ -4916,6 +5119,9 @@ zabbix_export:
             - lld_macro: '{#TYPE}'
               path: $.type
       macros:
+        - macro: '{$OPNS.BGP.PEER.NOT_MATCHES}'
+          value: ^$
+          description: 'BGP neighbours, by address, left out of discovery, for example ones that are configured but not meant to be up.'
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
@@ -7791,6 +7997,13 @@ zabbix_export:
                       value: CERTHC
       # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
       valuemaps:
+        - uuid: 497be743eb9f4d47bed4be3e4dd08aaa
+          name: BGP session
+          mappings:
+            - value: '0'
+              newvalue: Down
+            - value: '1'
+              newvalue: Established
         - uuid: 1454fbfd0a6345b38f4889113c9fde4c
           name: Enabled state
           mappings:
