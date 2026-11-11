@@ -680,6 +680,8 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
+          description: 'Master item. Firmware state from core/firmware/status, polled once a day. The endpoint took about three seconds on a small firewall, close to the default item timeout, and a single timeout leaves every firmware item unsupported until the next day, hence the longer timeout.'
+          timeout: 30s
           request_method: POST
           url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/status'
           tags:
