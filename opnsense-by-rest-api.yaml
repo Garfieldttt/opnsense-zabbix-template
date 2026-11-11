@@ -254,7 +254,7 @@ zabbix_export:
                       }
                   }
                   return JSON.stringify(rows);
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/ipsec/sessions/searchPhase1'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/ipsec/sessions/searchPhase1'
           tags:
             - tag: component
               value: raw
@@ -272,7 +272,7 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.rows
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/wireguard/service/show'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/wireguard/service/show'
           tags:
             - tag: component
               value: raw
@@ -529,7 +529,7 @@ zabbix_export:
                   }
                   
                   return JSON.stringify(data);
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_disk'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/system/system_disk'
           tags:
             - tag: component
               value: raw
@@ -542,7 +542,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/stats?group_by=action'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/stats?group_by=action'
           tags:
             - tag: component
               value: raw
@@ -555,7 +555,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/interfaces'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/interfaces'
           tags:
             - tag: component
               value: raw
@@ -568,7 +568,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_states'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/pf_states'
           tags:
             - tag: component
               value: raw
@@ -585,7 +585,7 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.items
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/routes/gateway/status'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/routes/gateway/status'
           tags:
             - tag: component
               value: raw
@@ -604,7 +604,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_vip_status'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/interface/get_vip_status'
           tags:
             - tag: component
               value: raw
@@ -624,7 +624,7 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$.*'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/traffic/_interface'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/traffic/_interface'
           tags:
             - tag: component
               value: raw
@@ -638,7 +638,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_time'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/system/system_time'
           tags:
             - tag: component
               value: raw
@@ -652,7 +652,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_resources'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/system/system_resources'
           tags:
             - tag: component
               value: raw
@@ -666,7 +666,7 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/info'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/core/firmware/info'
           tags:
             - tag: component
               value: raw
@@ -681,7 +681,7 @@ zabbix_export:
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
           request_method: POST
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/status'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/core/firmware/status'
           tags:
             - tag: component
               value: raw
@@ -776,7 +776,7 @@ zabbix_export:
                       }
                   }
                   return JSON.stringify(result);
-          url: 'https://{HOST.IP}:{$OPNS.PORT}/api/nut/diagnostics/upsstatus'
+          url: 'https://{HOST.CONN}:{$OPNS.PORT}/api/nut/diagnostics/upsstatus'
           tags:
             - tag: component
               value: raw
@@ -794,7 +794,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Header block of the process listing, which is the only place the API states how busy the processor actually is. The bulk of the response is the process table itself and is not evaluated, so nothing is stored from it.
           timeout: 15s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/activity/get_activity
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/activity/get_activity
           tags:
             - tag: component
               value: raw
@@ -816,7 +816,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Entries held by all pf tables together with the configured ceiling. Polled every ten minutes because block lists and GeoIP feeds move on that scale, not by the second.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/firewall/alias/get_table_size
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/firewall/alias/get_table_size
           tags:
             - tag: component
               value: raw
@@ -983,7 +983,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Processor model with core and thread count. Static inventory, but polled at the same interval as the load average it is divided into, because a calculated item goes unsupported while a referenced item has no data yet. The dependent item discards unchanged values, so this costs a request rather than history. This is also the only endpoint addressed in camelCase, because the action name carries consecutive capitals that the snake_case spelling does not reproduce; its privilege matches by wildcard, so the spelling raises no access problem.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/cpu_usage/get_c_p_u_type
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/cpu_usage/get_c_p_u_type
           tags:
             - tag: component
               value: raw
@@ -1122,7 +1122,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Master item. Lease table of the Kea DHCPv4 server, reduced to its counters. Returns zeros where Kea is not in use.
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/kea/leases4/search
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/kea/leases4/search
           tags:
             - tag: component
               value: raw
@@ -1175,7 +1175,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Master item. Lease table of the Kea DHCPv6 server, reduced to its counters. Returns zeros where Kea is not in use.
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/kea/leases6/search
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/kea/leases6/search
           tags:
             - tag: component
               value: raw
@@ -1303,7 +1303,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Kernel network memory pool, the libxo output of netstat -m.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_memory_statistics
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/interface/get_memory_statistics
           tags:
             - tag: component
               value: raw
@@ -1348,7 +1348,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Network dispatch queues, the libxo output of netstat -Q.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_netisr_statistics
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/interface/get_netisr_statistics
           tags:
             - tag: component
               value: raw
@@ -1416,7 +1416,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Peer list of the time daemon with selection state, stratum, reach, offset and jitter.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/ntpd/service/status
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/ntpd/service/status
           tags:
             - tag: component
               value: raw
@@ -1488,7 +1488,7 @@ zabbix_export:
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
           timeout: 15s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/openvpn/service/search_sessions
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/openvpn/service/search_sessions
           description: |
             Every OpenVPN instance and every client connected to a server, in one request. Instances that are enabled but not running are included, so a server that died is still discovered rather than disappearing.
             The API answers with one flat list in which a running server that has clients connected is represented by those clients alone, each of them carrying the description and the type of the instance they belong to. Discovered as it stands, a session would be named after its instance and the instance itself would vanish for as long as anybody is connected. The script splits the list into instances and sessions, rebuilds the instance from its sessions, adds the session counters up onto it, and reports an instance that is enabled but not running as stopped instead of leaving its status empty.
@@ -1963,7 +1963,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Running filter and NAT ruleset with per rule counters. Polled every ten minutes because the response carries the full text of every rule and rule changes are not a per minute concern.
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/rules
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/rules
           tags:
             - tag: component
               value: raw
@@ -2240,7 +2240,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: 'Full pfctl -si output: state table, source tracking, counters and limit counters. Rates are already computed by pf.'
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/info
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/info
           tags:
             - tag: component
               value: raw
@@ -2257,7 +2257,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: 'Hard limits for states, source nodes, fragments and table entries. These change only with the configuration, but are polled at the same interval as the counters they are compared against: a calculated item goes unsupported while a referenced item has no data yet, so a slower interval here would leave the source tracking utilisation unsupported after every template link.'
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/memory
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/firewall/pf_statistics/memory
           tags:
             - tag: component
               value: raw
@@ -2378,7 +2378,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Per protocol kernel counters, the libxo output of netstat -s.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/interface/get_protocol_statistics
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/interface/get_protocol_statistics
           tags:
             - tag: component
               value: raw
@@ -2437,7 +2437,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Run state of every service the firewall knows about, including the packet filter itself.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/core/service/search
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/core/service/search
           tags:
             - tag: component
               value: raw
@@ -2454,7 +2454,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Swap devices with total and used, in KB. The list is empty on installations without swap, which is why the items below are discovered rather than static.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_swap
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/system/system_swap
           tags:
             - tag: component
               value: raw
@@ -2594,7 +2594,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: 'Master item. The status panel of the web interface: an overall code and the message that goes with it. A firewall with nothing pending answers 2 and "No pending messages".'
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/core/system/status
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/core/system/status
           tags:
             - tag: component
               value: raw
@@ -2611,7 +2611,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Sensor readings as a JSON array. Hardware without sensors, notably virtual machines, returns an empty array, so nothing is discovered and no item goes unsupported.
           timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/diagnostics/system/system_temperature
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/diagnostics/system/system_temperature
           tags:
             - tag: component
               value: raw
@@ -2628,7 +2628,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Master item. The certificates in the trust store with their validity dates. Requires the Trust privilege, which is read only.
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/trust/cert/search
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/trust/cert/search
           tags:
             - tag: component
               value: raw
@@ -2770,7 +2770,7 @@ zabbix_export:
           password: '{$OPNS.SECRET}'
           description: Master item. Resolver statistics from unbound/diagnostics/stats, reduced to the total block, which sums the per thread blocks. Counters are absolute since the resolver last started.
           timeout: 30s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/unbound/diagnostics/stats
+          url: https://{HOST.CONN}:{$OPNS.PORT}/api/unbound/diagnostics/stats
           tags:
             - tag: component
               value: raw
@@ -4028,7 +4028,7 @@ zabbix_export:
               password: '{$OPNS.SECRET}'
               description: Child SAs of this connection. The endpoint takes the connection through a POST parameter and returns an empty set without it, which is why this is one request per tunnel rather than a single master item. The identifier is the name field of the phase 1 row, the same value the web interface sends. Only the two fields that exist nowhere else, mode and state, are read from here; the byte and packet counters come from the phase 1 master, which aggregates the same child SAs itself and costs no request per tunnel.
               timeout: 15s
-              url: https://{HOST.IP}:{$OPNS.PORT}/api/ipsec/sessions/search_phase2
+              url: https://{HOST.CONN}:{$OPNS.PORT}/api/ipsec/sessions/search_phase2
               posts: id={#IPSECNAME}
               headers:
                 - name: Content-Type
@@ -4941,6 +4941,7 @@ zabbix_export:
         - macro: '{$OPNS.GW.MIN.PACKET.LOSS}'
           value: '10'
         - macro: '{$OPNS.KEY}'
+          description: 'API key of the monitoring user. Set it on the host.'
         - macro: '{$OPNS.LICENSE.EXPIRY.WARN}'
           value: '30'
         - macro: '{$OPNS.MEMORY.UTIL.MAX}'
@@ -4953,6 +4954,8 @@ zabbix_export:
         - macro: '{$OPNS.NUT.HIGH.LOAD}'
           value: '80'
         - macro: '{$OPNS.SECRET}'
+          type: SECRET_TEXT
+          description: 'API secret. Set it on the host with the macro type Secret text, so it stays hidden in the frontend and in exports.'
         - macro: '{$OPNS.STATE.TABLE.UTIL.MAX}'
           value: '90'
         - macro: '{$OPNS.PORT}'
