@@ -820,6 +820,38 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: f506300ae5544715a90b5dc280ac2568
+          name: 'CARP: Node role'
+          type: DEPENDENT
+          key: opns.carp.role
+          delay: '0'
+          valuemap:
+            name: CARP node role
+          description: 'Role of this firewall in a CARP cluster, from the state of its virtual addresses: Master when all are master, Backup when all are backup, Mixed when they disagree, None without CARP. Triggers for things that only run on the master (VPN instances and peers, BGP sessions, selected interfaces and services) stay quiet while this reads Backup.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // 0 none, 1 master, 2 backup, 3 mixed
+                  var rows = [];
+                  try { rows = JSON.parse(value).rows || []; } catch (e) { return 0; }
+                  var m = 0, b = 0;
+                  for (var i = 0; i < rows.length; i++) {
+                      var s = String(rows[i].status || '').toUpperCase();
+                      if (s === 'MASTER') { m++; } else if (s === 'BACKUP') { b++; }
+                  }
+                  if (m === 0 && b === 0) { return 0; }
+                  return m && b ? 3 : (m ? 1 : 2);
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: opns.raw.interfaces.carp
+          tags:
+            - tag: component
+              value: carp
         - uuid: 880f25dabb274a84b41e4a669fe90420
           name: 'CARP: Demotion factor'
           type: DEPENDENT
@@ -3632,7 +3664,7 @@ zabbix_export:
                   value: '{#WG.IF}'
               trigger_prototypes:
                 - uuid: 9bde0c5a6cc948d9ac90f0c080cec627
-                  expression: 'find(/OPNsense by REST API/opns.wireguard.instance.status[{#WG.IF}],5m,"eq","up")=0'
+                  expression: 'find(/OPNsense by REST API/opns.wireguard.instance.status[{#WG.IF}],5m,"eq","up")=0 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.CARP.BACKUP.QUIET}=0)'
                   name: 'WireGuard instance {#WG.INSTANCE} is down'
                   priority: HIGH
             - uuid: cd9490630cca4d70bf9898a783e4b831
@@ -3724,7 +3756,7 @@ zabbix_export:
                   value: '{#WG.IF}'
               trigger_prototypes:
                 - uuid: 6dcbf31f2e834b95816ecf10e21e389d
-                  expression: 'find(/OPNsense by REST API/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0'
+                  expression: 'find(/OPNsense by REST API/opns.wireguard.peer.status["{#WG.PUBKEY}"],5m,"eq","online")=0 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.CARP.BACKUP.QUIET}=0)'
                   name: 'WireGuard peer {#WG.NAME} is not online'
                   priority: HIGH
                   description: 'WireGuard peer status is stale or offline. OPNsense marks peers online when the latest handshake is not older than 300 seconds.'
@@ -4376,7 +4408,7 @@ zabbix_export:
                   value: '{#IFNAME}'
               trigger_prototypes:
                 - uuid: 110a1532440747e5b4d548420b2053f6
-                  expression: last(/OPNsense by REST API/opns.net.if.status[{#IFNAME}])=0 and {$OPNS.IF.CONTROL:"{#IFNAME}"}=1
+                  expression: 'last(/OPNsense by REST API/opns.net.if.status[{#IFNAME}])=0 and {$OPNS.IF.CONTROL:"{#IFNAME}"}=1 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.IF.BACKUP.QUIET:"{#IFNAME}"}=0)'
                   name: Interface {#IFALIAS} ({#IFNAME}) is down
                   priority: AVERAGE
                   description: The link is gone or the interface was shut down. Set {$OPNS.IF.CONTROL:"{#IFNAME}"} to 0 for interfaces that are allowed to be down, such as a cold standby uplink.
@@ -4750,7 +4782,7 @@ zabbix_export:
                   value: '{#SERVICE.ID}'
               trigger_prototypes:
                 - uuid: da4a4099f5d24feeaea0a84c3cfd28e5
-                  expression: min(/OPNsense by REST API/opns.service.running[{#SERVICE.ID}],#2)=0
+                  expression: 'min(/OPNsense by REST API/opns.service.running[{#SERVICE.ID}],#2)=0 and (last(/OPNsense by REST API/opns.carp.role)<>2 or {$OPNS.SERVICE.BACKUP.QUIET:"{#SERVICE.ID}"}=0)'
                   name: Service {#SERVICE.DESCRIPTION} is not running
                   priority: AVERAGE
                   description: The service was not running in two consecutive checks, which is ten minutes at the default interval. A single missed check, for example during a reload, does not raise the problem. Add it to {$OPNS.SERVICE.ID.NOT_MATCHES} if it is not supposed to run on this firewall.
@@ -4916,6 +4948,9 @@ zabbix_export:
             - lld_macro: '{#TYPE}'
               path: $.type
       macros:
+        - macro: '{$OPNS.CARP.BACKUP.QUIET}'
+          value: '1'
+          description: 'Set to 0 to report VPN instances, VPN peers and BGP sessions as down on a CARP backup too. By default they stay quiet there, because they only run on the master.'
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
         - macro: '{$OPNS.FS.FSNAME.MATCHES}'
@@ -4989,6 +5024,12 @@ zabbix_export:
         - macro: '{$OPNS.DNS.RECURSION.WARN}'
           value: '1'
           description: Average recursion time in seconds that counts as slow. Uncached answers from a healthy upstream resolver stay well below one second.
+        - macro: '{$OPNS.IF.BACKUP.QUIET}'
+          value: '0'
+          description: 'Interfaces, by device name through context, whose down state is not reported while the firewall is CARP backup. Set to 1 for an interface with context, regex context included.'
+        - macro: '{$OPNS.IF.BACKUP.QUIET:regex:"^(wg|awg)[0-9]+$"}'
+          value: '1'
+          description: 'WireGuard and AmneziaWG interfaces are down on a CARP backup when their instances depend on CARP.'
         - macro: '{$OPNS.IF.CONTROL}'
           value: '1'
           description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
@@ -5022,6 +5063,12 @@ zabbix_export:
         - macro: '{$OPNS.PF.TABLES.UTIL.WARN}'
           value: '80'
           description: Share of the pf table entry budget that counts as filling up. Relevant where block lists or GeoIP aliases are in use.
+        - macro: '{$OPNS.SERVICE.BACKUP.QUIET}'
+          value: '0'
+          description: 'Services, by service id through context, that are allowed to be stopped while the firewall is CARP backup. Set to 1 with context, regex context included.'
+        - macro: '{$OPNS.SERVICE.BACKUP.QUIET:regex:"^(wireguard|amneziawg|mdns-repeater)"}'
+          value: '1'
+          description: 'VPN instances and the mDNS repeater only run on the CARP master.'
         - macro: '{$OPNS.SERVICE.ID.NOT_MATCHES}'
           value: ^$
           description: Services excluded from discovery, as a regular expression over the service identifier. The default excludes nothing.
@@ -7791,6 +7838,17 @@ zabbix_export:
                       value: CERTHC
       # --- added from OPNsense by HTTP API (github.com/Garfieldttt/opnsense-zabbix-api) ---
       valuemaps:
+        - uuid: e7a8e0f638b0441592ed0cae83dd982f
+          name: CARP node role
+          mappings:
+            - value: '0'
+              newvalue: None
+            - value: '1'
+              newvalue: Master
+            - value: '2'
+              newvalue: Backup
+            - value: '3'
+              newvalue: Mixed
         - uuid: 1454fbfd0a6345b38f4889113c9fde4c
           name: Enabled state
           mappings:
