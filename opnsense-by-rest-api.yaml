@@ -3096,7 +3096,7 @@ zabbix_export:
               name: 'Gateway monitored {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.monitored[{#GWSTATUSNAME}]'
-              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed. The loss triggers also require this to be 1, and the discovery rule keeps lost items and triggers enabled until it removes them after an hour, so an open loss or down problem closes as soon as monitoring is switched off.'
+              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed. The loss triggers also require this to be 1, and the discovery rule keeps lost items and triggers enabled until it removes them after an hour, so an open loss or down problem closes once monitoring is switched off. It stores every value, because each value re-evaluates the triggers: a trigger is not re-evaluated while one it depends on is a problem, so High packet loss and Packet loss close one minute after another.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
@@ -3104,9 +3104,6 @@ zabbix_export:
                 - type: JAVASCRIPT
                   parameters:
                     - 'return value === ''~'' ? 0 : 1;'
-                - type: DISCARD_UNCHANGED_HEARTBEAT
-                  parameters:
-                    - 1h
               master_item:
                 key: opns.raw.gateway.status
               tags:
