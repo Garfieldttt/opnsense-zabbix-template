@@ -3594,6 +3594,68 @@ zabbix_export:
                   value: '{#OPNS.INTERFACE.NAME}'
                 - tag: interface
                   value: '{#OPNS.INTERFACE.DEVICE}'
+            - uuid: 3e6dd3a7fae34439be455911b0456588
+              name: 'Interface [{#OPNS.INTERFACE.DEVICE}({#OPNS.INTERFACE.NAME})]: Speed'
+              type: DEPENDENT
+              key: 'opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]'
+              units: bps
+              description: 'Line rate the driver reports for the interface. Only Ethernet, VLAN and LAGG interfaces carry a real figure; pppoe reports a nominal 64 kbit/s and other virtual interfaces report nothing useful, so they read 0 and the bandwidth triggers skip them. Virtual NICs report a nominal speed, virtio for example 10 Gbit/s, so on a virtual machine the utilisation triggers measure against that figure rather than against the real uplink; set {$OPNS.IF.UTIL.MAX} per interface or ignore them there.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["name"] == "{#OPNS.INTERFACE.NAME}")].first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      // "line rate" reads like "1000000000 bit/s". Interface types as netstat names them:
+                      // Ethernet, l2vlan (135) and ieee8023adLag (161) carry the negotiated speed.
+                      var o = JSON.parse(value), m = /^(\d+)/.exec(String(o['line rate']));
+                      if (!m || !/^(Ethernet|unknown type (135|161))$/.test(String(o.type))) {
+                          return 0;
+                      }
+                      return m[1];
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.raw.interfaces.stat
+              tags:
+                - tag: component
+                  value: network
+                - tag: description
+                  value: '{#OPNS.INTERFACE.NAME}'
+                - tag: interface
+                  value: '{#OPNS.INTERFACE.DEVICE}'
+              trigger_prototypes:
+                - uuid: 2e52d3402be74e89a6ceda2df467b410
+                  expression: 'change(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])<0 and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+                  name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}) has changed to a lower speed'
+                  opdata: '{ITEM.LASTVALUE1}'
+                  priority: INFO
+                  description: 'The link renegotiated to a lower speed than before, often a sign of a cable, optic or autonegotiation problem. Close it manually once the cause is known.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: performance
+          trigger_prototypes:
+            - uuid: d65b26c6a9f34ad6a3cab459fbe5d853
+              expression: 'avg(/OPNsense by REST API/opns.interface.bytes.received[{#OPNS.INTERFACE.DEVICE}],15m)*8>({$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"}/100)*last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]) and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+              name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}): High inbound bandwidth usage'
+              opdata: 'In: {ITEM.LASTVALUE1}, speed: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Inbound traffic averaged over 15 minutes is above {$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"} percent of the link speed.'
+              tags:
+                - tag: scope
+                  value: performance
+            - uuid: 28546d0716884f3c97eebab77e19f639
+              expression: 'avg(/OPNsense by REST API/opns.interface.bytes.transmitted[{#OPNS.INTERFACE.DEVICE}],15m)*8>({$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"}/100)*last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}]) and last(/OPNsense by REST API/opns.interface.speed[{#OPNS.INTERFACE.DEVICE}])>0'
+              name: 'Interface {#OPNS.INTERFACE.NAME} ({#OPNS.INTERFACE.DEVICE}): High outbound bandwidth usage'
+              opdata: 'Out: {ITEM.LASTVALUE1}, speed: {ITEM.LASTVALUE2}'
+              priority: WARNING
+              description: 'Outbound traffic averaged over 15 minutes is above {$OPNS.IF.UTIL.MAX:"{#OPNS.INTERFACE.DEVICE}"} percent of the link speed.'
+              tags:
+                - tag: scope
+                  value: performance
           master_item:
             key: opns.raw.interfaces.stat
           lld_macro_paths:
@@ -4992,6 +5054,9 @@ zabbix_export:
         - macro: '{$OPNS.IF.CONTROL}'
           value: '1'
           description: Set to 0, optionally per interface as {$OPNS.IF.CONTROL:"vtnet3"}, to stop the down trigger for interfaces that are allowed to have no link.
+        - macro: '{$OPNS.IF.UTIL.MAX}'
+          value: '90'
+          description: 'Bandwidth utilisation in percent of the link speed counting as high, averaged over 15 minutes. Per interface through context, for example {$OPNS.IF.UTIL.MAX:"igb0"}.'
         - macro: '{$OPNS.IF.NAME.NOT_MATCHES}'
           value: ^(pflog|pfsync|enc|lo)\d*$
           description: Interfaces that should not be discovered.
