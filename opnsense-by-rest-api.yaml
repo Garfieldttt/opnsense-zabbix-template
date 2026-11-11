@@ -3076,6 +3076,7 @@ zabbix_export:
           type: DEPENDENT
           key: opns.gateway.discovery
           lifetime: 1h
+          enabled_lifetime_type: DISABLE_NEVER
           item_prototypes:
             - uuid: 68818cd02e5846bd9f7a82065a86e5fb
               name: 'Gateway Address {#GWSTATUSNAME}'
@@ -3086,6 +3087,23 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - '$..[?(@.["name"] == "{#GWSTATUSNAME}")].address.first()'
+              master_item:
+                key: opns.raw.gateway.status
+              tags:
+                - tag: Gateway
+                  value: '{#GWSTATUSNAME}'
+            - uuid: 675b1270202847aaac0c4a2fef0f1b8e
+              name: 'Gateway monitored {#GWSTATUSNAME}'
+              type: DEPENDENT
+              key: 'opns.gw.status.monitored[{#GWSTATUSNAME}]'
+              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed. The loss triggers also require this to be 1, and the discovery rule keeps lost items and triggers enabled until it removes them after an hour, so an open loss or down problem closes once monitoring is switched off. It stores every value, because each value re-evaluates the triggers: a trigger is not re-evaluated while one it depends on is a problem, so High packet loss and Packet loss close one minute after another.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - '$..[?(@.["name"] == "{#GWSTATUSNAME}")].delay.first()'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === ''~'' ? 0 : 1;'
               master_item:
                 key: opns.raw.gateway.status
               tags:
@@ -3133,23 +3151,23 @@ zabbix_export:
                   value: '{#GWSTATUSNAME}'
               trigger_prototypes:
                 - uuid: 502fa89a336041b48332a640f838730d
-                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.HIGH.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100'
+                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.HIGH.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100 and last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=1'
                   name: 'Gateway {#GWSTATUSNAME} High packet loss'
                   priority: HIGH
                   dependencies:
                     - name: 'Gateway {#GWSTATUSNAME} is down'
-                      expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>99 and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100'
+                      expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>99 and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100 and last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=1'
                 - uuid: 57695d3ce51442e3bfd782e7221dc50d
-                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>99 and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100'
+                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>99 and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100 and last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=1'
                   name: 'Gateway {#GWSTATUSNAME} is down'
                   priority: DISASTER
                 - uuid: 9a255ecc5fa44e938e49a022de9187d0
-                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.MIN.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100'
+                  expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.MIN.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100 and last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=1'
                   name: 'Gateway {#GWSTATUSNAME} Packet loss'
                   priority: AVERAGE
                   dependencies:
                     - name: 'Gateway {#GWSTATUSNAME} High packet loss'
-                      expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.HIGH.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100'
+                      expression: 'min(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)>{$OPNS.GW.HIGH.PACKET.LOSS} and max(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],5m)<=100 and last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=1'
             - uuid: 4f922041b30246ff8bb237418c5bedf3
               name: 'Gateway Status {#GWSTATUSNAME}'
               type: DEPENDENT
@@ -3186,18 +3204,34 @@ zabbix_export:
                   value: '{#GWSTATUSNAME}'
           trigger_prototypes:
             - uuid: 6889ca48ddf2422e8a41f51373328ce6
-              expression: 'nodata(/OPNsense by REST API/opns.gw.status.delay[{#GWSTATUSNAME}],10m)=1 and nodata(/OPNsense by REST API/opns.gw.status.loss[{#GWSTATUSNAME}],10m)=1 and nodata(/OPNsense by REST API/opns.gw.status.stddev[{#GWSTATUSNAME}],10m)=1'
+              expression: 'last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=0 and {$OPNS.GW.MONITOR.EXPECTED:"{#GWSTATUSNAME}"}=1'
               name: 'Gateway Monitoring on {#GWSTATUSNAME} is disabled'
               priority: INFO
               description: 'The gateway has no monitor address, so the firewall never probes it and reports a tilde instead of round trip time, loss and deviation. It also reports the gateway as Online, which says nothing about reachability. While this is the case an outage of this gateway raises nothing, because the down trigger works on packet loss. Set a monitor address under System, Gateways, Single, or accept that this gateway is not checked: https://docs.opnsense.org/manual/gateways.html'
-              dependencies:
-                - name: 'No data from OPNsense'
-                  expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
           master_item:
             key: opns.raw.gateway.status
           lld_macro_paths:
             - lld_macro: '{#GWSTATUSNAME}'
               path: $.name
+            - lld_macro: '{#GW.DELAY}'
+              path: $.delay
+          overrides:
+            - name: 'Gateway not probed'
+              step: '1'
+              filter:
+                conditions:
+                  - macro: '{#GW.DELAY}'
+                    value: '^~$'
+                    formulaid: A
+              operations:
+                - operationobject: ITEM_PROTOTYPE
+                  operator: REGEXP
+                  value: '^Gateway (RTT|RTTd|loss) '
+                  discover: NO_DISCOVER
+                - operationobject: TRIGGER_PROTOTYPE
+                  operator: REGEXP
+                  value: '(acket loss|is down)$'
+                  discover: NO_DISCOVER
         - uuid: 9674f5eca4e146c2be5abfac7d493f5f
           name: 'Interface CARP Discovery'
           type: DEPENDENT
@@ -4938,6 +4972,9 @@ zabbix_export:
           description: 'The warning threshold of the filesystem utilization.'
         - macro: '{$OPNS.GW.HIGH.PACKET.LOSS}'
           value: '50'
+        - macro: '{$OPNS.GW.MONITOR.EXPECTED}'
+          value: '1'
+          description: 'Set to 0 with the gateway name as context, e.g. {$OPNS.GW.MONITOR.EXPECTED:"VPN_PIA"}, for a gateway that is not probed on purpose (one that does not answer ICMP, or the CARP address on the master). Silences the Info about its monitoring being disabled.'
         - macro: '{$OPNS.GW.MIN.PACKET.LOSS}'
           value: '10'
         - macro: '{$OPNS.KEY}'
