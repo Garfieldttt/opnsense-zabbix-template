@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+127 items, 16 discovery rules with 76 item prototypes, 58 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -161,6 +161,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.PF.TABLES.UTIL.WARN}` | `80` | Share of the pf table entry budget counting as filling up. Relevant with block lists or GeoIP aliases |
 | `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Gateway packet loss counting as a problem |
 | `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Gateway packet loss counting as severe |
+| `{$OPNS.GW.MONITOR.EXPECTED}` | `1` | Set to 0 with the gateway name as context, e.g. `{$OPNS.GW.MONITOR.EXPECTED:"VPN_PIA"}`, for a gateway that is not probed on purpose. Silences the Info about its monitoring being off |
 | `{$OPNS.NTP.OFFSET.WARN}` | `100` | Clock offset in milliseconds. Generous for a LAN time source and still far below what breaks Kerberos or IPsec |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before the business license expires |
 | `{$OPNS.NUT.BAT.LOW}` | `30` | UPS battery charge counting as low |
@@ -260,7 +261,11 @@ the loss triggers, for gateways that are actually probed; for the others a monit
 0. Earlier the three items existed and discarded the tilde, which left them unsupported for
 good after any outage of the API, because a discarded value never clears an error. While
 monitoring is off, an outage of that gateway raises nothing, because the down trigger works on
-packet loss. That is what the Info trigger is for.
+packet loss. That is what the Info trigger is for. Some gateways cannot or should not be probed,
+for example a tunnel peer that does not answer ICMP or, on a CARP master, the shared address
+that only the backup routes through; `{$OPNS.GW.MONITOR.EXPECTED:"<gateway>"}` set to 0 marks
+them as unprobed on purpose. The Info trigger only re-evaluates when the monitored item stores
+a value, which it does at least hourly, so a change of the macro shows within the hour.
 
 **IPsec phase 2** needs one request per connection. `searchPhase2Action` reads its connection
 from `getPost('id')` and returns an empty set for a plain GET, so phase 2 is an HTTP agent

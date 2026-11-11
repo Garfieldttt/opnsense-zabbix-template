@@ -3206,7 +3206,7 @@ zabbix_export:
                   value: '{#GWSTATUSNAME}'
           trigger_prototypes:
             - uuid: 6889ca48ddf2422e8a41f51373328ce6
-              expression: 'last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=0'
+              expression: 'last(/OPNsense by REST API/opns.gw.status.monitored[{#GWSTATUSNAME}])=0 and {$OPNS.GW.MONITOR.EXPECTED:"{#GWSTATUSNAME}"}=1'
               name: 'Gateway Monitoring on {#GWSTATUSNAME} is disabled'
               priority: INFO
               description: 'The gateway has no monitor address, so the firewall never probes it and reports a tilde instead of round trip time, loss and deviation. It also reports the gateway as Online, which says nothing about reachability. While this is the case an outage of this gateway raises nothing, because the down trigger works on packet loss. Set a monitor address under System, Gateways, Single, or accept that this gateway is not checked: https://docs.opnsense.org/manual/gateways.html'
@@ -4974,6 +4974,9 @@ zabbix_export:
           description: 'The warning threshold of the filesystem utilization.'
         - macro: '{$OPNS.GW.HIGH.PACKET.LOSS}'
           value: '50'
+        - macro: '{$OPNS.GW.MONITOR.EXPECTED}'
+          value: '1'
+          description: 'Set to 0 with the gateway name as context, e.g. {$OPNS.GW.MONITOR.EXPECTED:"VPN_PIA"}, for a gateway that is not probed on purpose (one that does not answer ICMP, or the CARP address on the master). Silences the Info about its monitoring being disabled.'
         - macro: '{$OPNS.GW.MIN.PACKET.LOSS}'
           value: '10'
         - macro: '{$OPNS.KEY}'
