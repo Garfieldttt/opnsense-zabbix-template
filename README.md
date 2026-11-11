@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 16 discovery rules with 76 item prototypes, 59 triggers, 50 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -169,12 +169,18 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.DNS.RECURSION.WARN}` | `1` | Average recursion time in seconds counting as slow |
 | `{$OPNS.DNS.HITRATIO.MIN}` | `60` | Cache hit ratio in percent below which the resolver is reported as working harder than it should |
 | `{$OPNS.CERT.EXPIRE.DAYS}` | `21d` | Lead time before a certificate expires |
+| `{$OPNS.VPN.IDLE.TIME}` | `10m` | Time without any handshake after which a WireGuard or AmneziaWG instance counts as idle. Context by interface, e.g. `{$OPNS.VPN.IDLE.TIME:"wg1"}` |
+| `{$OPNS.VPN.ACTIVE.TIME}` | `1h` | How long the instance must have been in use before going idle counts as a failure. Context by interface |
 
 ### Discovery filters and switches
 
 | Macro | Default | Purpose |
 |-------|---------|---------|
 | `{$OPNS.IF.CONTROL}` | `1` | Set to 0, per interface through context, to silence the interface down trigger |
+| `{$OPNS.CARP.BACKUP.QUIET}` | `1` | VPN instances, VPN peers and BGP sessions are not reported as down while the firewall is CARP backup. Set to 0 to report them anyway |
+| `{$OPNS.IF.BACKUP.QUIET}` | `0`, `1` for `regex:"^(wg\|awg)[0-9]+$"` | Interfaces, through context, whose down state is not reported on a CARP backup |
+| `{$OPNS.SERVICE.BACKUP.QUIET}` | `0`, `1` for `regex:"^(wireguard\|amneziawg\|mdns-repeater)"` | Services, through context, allowed to be stopped on a CARP backup |
+| `{$OPNS.VPN.RESTART}` | `1` | Set to 0, per interface through context (`{$OPNS.VPN.RESTART:"wg0"}`), for VPN instances whose peers come and go, such as phones. Switches off the idle trigger and with it the automatic restart |
 | `{$OPNS.IF.NAME.NOT_MATCHES}` | `^(pflog\|pfsync\|enc\|lo)\d*$` | Interfaces excluded from discovery |
 | `{$OPNS.SERVICE.ID.NOT_MATCHES}` | `^$` | Services excluded from discovery, excludes nothing by default |
 | `{$OPNS.OPENVPN.ID.NOT_MATCHES}` | `^$` | OpenVPN instances excluded from discovery, sessions of an excluded instance go with it |
@@ -202,7 +208,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | Services | run state per service |
 | FW Action Discovery | firewall log actions |
 | IPsec Phase1 Discovery | tunnels, with phase 2 per connection |
-| WireGuard Instance Discovery | instances |
+| WireGuard Instance Discovery | instances, newest handshake age |
 | WireGuard Peer Discovery | peers, traffic and handshake age |
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
@@ -210,7 +216,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+59 in total: 2 Disaster, 13 High, 14 Average, 21 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +302,44 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**A CARP backup is not a broken master.** Instances that depend on CARP, WireGuard tunnels
+for example, are down on the backup by design, and some services only run on the master.
+CARP: Node role reads Master, Backup, Mixed or None from the virtual addresses. While it reads
+Backup, the triggers for VPN instances and peers and for BGP sessions stay quiet, and so do the
+interface and service triggers for interfaces and services named in the regex context of
+`{$OPNS.IF.BACKUP.QUIET}` and `{$OPNS.SERVICE.BACKUP.QUIET}`. After a failover the new master
+reports them as usual. Standalone firewalls read None and are not affected.
+
+**A VPN instance that went idle after being active.** Each WireGuard and AmneziaWG instance
+gets the age of the newest handshake of any of its peers. A tunnel in use renews its handshake
+about every two minutes, so the value stays small while traffic flows and grows once it stops.
+The trigger fires when no handshake happened for `{$OPNS.VPN.IDLE.TIME}` (10 minutes) although
+the instance never went that long without one during the `{$OPNS.VPN.ACTIVE.TIME}` (one hour)
+before. A tunnel that has never been up, or that was only up for a few minutes, does not fire
+it; neither does the CARP backup. It recovers with the next handshake. Instances for phones
+and laptops go idle whenever their users disconnect: set `{$OPNS.VPN.RESTART:"<interface>"}`
+to 0 for them.
+
+The trigger carries the tags `vpn_type`, `vpn_if` and `vpn_idle` so that an action can restart
+the instance. [zabbix-scripts/opnsense-vpn-restart.js](zabbix-scripts/opnsense-vpn-restart.js)
+is a webhook script for that. It uses the host's API key and only endpoints the template already
+reads (Status: Services restarts single service instances), finds the instance by its
+interface, checks once more that no peer completed a handshake within the idle time, and then
+restarts only that instance. To set it up, under Alerts, Scripts:
+
+| Script | Scope | Parameters besides `host`=`{HOST.CONN}`, `port`=`{$OPNS.PORT}`, `key`=`{$OPNS.KEY}`, `secret`=`{$OPNS.SECRET}` |
+|--------|-------|------------|
+| restart idle VPN instance (action) | Action operation | `instance`=`{EVENT.TAGS.vpn_if}`, `idle`=`{EVENT.TAGS.vpn_idle}`, `force`=`0` |
+| Restart VPN instance | Manual host action, manual input `^a?wg[0-9]+( force)?$` | `instance`=`{MANUALINPUT}`, `idle`=`{$OPNS.VPN.IDLE.TIME}`, `force`=`0` |
+| Restart this VPN instance | Manual event action | `instance`=`{EVENT.TAGS.vpn_if}`, `idle`=`{EVENT.TAGS.vpn_idle}`, `force`=`1` |
+
+Type Webhook, timeout 30 s. The action needs the condition "Tag name equals vpn_if", a first
+step without operations (a minute's grace for a tunnel that comes back by itself), the action
+script as step 2 on the current host, and a message as step 3 for the case that the restart
+did not help. One restart per problem: if the far end is gone, the firewall can do nothing
+about it, and the problem stays until the tunnel is back. A restart drops the instance's
+sessions only for a moment and does not touch other instances.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
