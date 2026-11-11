@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+128 items, 16 discovery rules with 75 item prototypes, 59 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -50,7 +50,7 @@ with 9 pages.
 | Services, discovered and checked | `core/service/search` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
-| Configuration change timestamp, uptime | `diagnostics/system/system_time` |
+| Configuration change timestamp, uptime, clock difference to the Zabbix server | `diagnostics/system/system_time` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
 | Resolver: queries, cache hits and misses, prefetches, rate limited queries, recursion time, request queue | `unbound/diagnostics/stats` |
 | Certificate validity, discovered per certificate | `trust/cert/search` |
@@ -161,6 +161,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.PF.TABLES.UTIL.WARN}` | `80` | Share of the pf table entry budget counting as filling up. Relevant with block lists or GeoIP aliases |
 | `{$OPNS.GW.MIN.PACKET.LOSS}` | `10` | Gateway packet loss counting as a problem |
 | `{$OPNS.GW.HIGH.PACKET.LOSS}` | `50` | Gateway packet loss counting as severe |
+| `{$OPNS.CLOCK.DIFF.MAX}` | `10` | Seconds the firewall clock may differ from the Zabbix server clock |
 | `{$OPNS.NTP.OFFSET.WARN}` | `100` | Clock offset in milliseconds. Generous for a LAN time source and still far below what breaks Kerberos or IPsec |
 | `{$OPNS.LICENSE.EXPIRY.WARN}` | `30` | Days before the business license expires |
 | `{$OPNS.NUT.BAT.LOW}` | `30` | UPS battery charge counting as low |
@@ -210,7 +211,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+59 in total: 2 Disaster, 13 High, 13 Average, 22 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +297,16 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**The clock is also compared with the Zabbix server.** The NTP items describe what ntpd
+believes; System: Clock difference to Zabbix server checks the result from outside, whichever
+daemon runs, by comparing the time the firewall reports with the Zabbix server clock. The
+firewall gives its time with a zone abbreviation such as GMT or CEST, which cannot be mapped to
+an offset reliably, so whole quarter hours are treated as time zone. Drift up to seven and a
+half minutes is measured, which is how a lost time source shows; a clock off by exactly an hour
+is not. If the Zabbix server takes its time from this firewall, both drift together and the
+check sees nothing, so on the network's time source the daemon's own items are the ones to
+watch.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
