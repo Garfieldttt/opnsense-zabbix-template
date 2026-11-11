@@ -300,6 +300,12 @@ rule takes the empty list.
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
 
+**A ruleset reload is not a ruleset change.** pfctl names the tables it creates for inline
+address lists `__automatic_<random>_<n>`, and the random part is new on every load. With firewall
+schedules configured, OPNsense reloads the ruleset every 15 minutes, so the fingerprint ignores
+that part; without it the fingerprint changed four times an hour on such a firewall. The same
+reloads reset the rule counters, so Rules never matched reads high on a firewall with schedules.
+
 **An OpenVPN server disappears behind its own clients.** `search_sessions` answers with one
 flat list, and a running server that has clients connected is represented by those clients
 alone. Each client carries the description, the type and the status of the instance it belongs

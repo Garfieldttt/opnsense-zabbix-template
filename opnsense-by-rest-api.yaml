@@ -1899,7 +1899,7 @@ zabbix_export:
           delay: '0'
           value_type: CHAR
           trends: '0'
-          description: Hash over the text of every filter and NAT rule, sorted so that reordering alone does not register. Catches what the rule counts cannot, namely an edit to an existing rule, which leaves the number of rules untouched. Counters are excluded from the hash, otherwise it would change with every packet. On a firewall whose WAN address changes, expect this to move with it. Rules written against an interface keep a symbolic form such as (vtnet0:1), but the generated anti-spoofing rules and every route-to statement embed the address literally; on the firewall this was measured against, 22 of 176 rules did so. The trigger is INFO for that reason, and a changed address is in fairness a changed ruleset.
+          description: Hash over the text of every filter rule, sorted so that reordering alone does not register. NAT rules are not included. Catches what the rule counts cannot, namely an edit to an existing rule, which leaves the number of rules untouched. Counters are excluded from the hash, otherwise it would change with every packet, and so are the numbers pfctl -vv writes into the rule text itself, the rule number (@75), the entries per table (<spamhaus_drop:1681>) and the addresses per dynamic interface ((vtnet0:1)), which move with a URL table refresh or a DHCP lease without the ruleset changing, and the random part of the tables pfctl creates for inline address lists (<__automatic_1a2b3c4d_0>), which is new on every ruleset load; with firewall schedules OPNsense reloads every 15 minutes. On a firewall whose WAN address changes, expect this to move with it all the same. Rules written against an interface keep a symbolic form such as (vtnet0), but the generated anti-spoofing rules and every route-to statement embed the address literally; on the firewall this was measured against, 22 of 176 rules did so. The trigger is INFO for that reason, and a changed address is in fairness a changed ruleset.
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -1982,14 +1982,28 @@ zabbix_export:
                       evaluations += Number(r.evaluations) || 0;
                       if ((Number(r.evaluations) || 0) === 0) { unused++; }
                   }
-                  // order independent checksum over the rule texts, so a reordered ruleset still reads as a
-                  // change while an unchanged one keeps its fingerprint
-                  var h = 0;
+                  // Checksum over the sorted rule texts, so reordering alone does not register while an
+                  // unchanged ruleset keeps its fingerprint. pfctl -vv embeds the rule number and counters
+                  // that change while the ruleset does not: entries per table (<name:N>, moves on every URL
+                  // table refresh) and addresses per dynamic interface ((em0:N), moves with DHCP, PPPoE or a
+                  // delegated prefix). They are stripped before hashing, and so is the random part pfctl
+                  // gives the tables it creates for inline address lists (<__automatic_1a2b3c4d_0>), which
+                  // is new on every ruleset load, e.g. the quarter hourly reload for firewall schedules. Whitespace is excluded from the
+                  // interface pattern so that route-to (em0 192.0.2.1) is left alone, and the pf :0
+                  // modifier survives, (em0:0:1) becomes (em0:0). Hashing the joined list rather than
+                  // XOR-ing per rule hashes keeps two identical texts from cancelling each other out.
+                  var norm = [];
                   for (var j = 0; j < names.length; j++) {
-                      var s = names[j], k = 0;
-                      for (var c = 0; c < s.length; c++) { k = (k * 31 + s.charCodeAt(c)) & 0xffffffff; }
-                      h = (h ^ k) >>> 0;
+                      norm.push(names[j]
+                          .replace(/^@\d+\s*/, '')
+                          .replace(/<([^>:\s]+):(\d+|\*)>/g, '<$1>')
+                          .replace(/<__automatic_[0-9a-f]+_(\d+)>/g, '<__automatic_$1>')
+                          .replace(/\(([^\s()]+?):\d+\)/g, '($1)'));
                   }
+                  norm.sort();
+                  var s = norm.join('\n'), h = 0;
+                  for (var c = 0; c < s.length; c++) { h = (h * 31 + s.charCodeAt(c)) & 0xffffffff; }
+                  h = h >>> 0;
                   return JSON.stringify({
                       filter: names.length,
                       nat: Object.keys(nat).length,
