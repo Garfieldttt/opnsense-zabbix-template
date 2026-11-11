@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+127 items, 17 discovery rules with 91 item prototypes, 63 triggers, 43 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -49,6 +49,7 @@ with 9 pages.
 | OpenVPN instances and clients | `openvpn/service/search_sessions` |
 | Services, discovered and checked | `core/service/search` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
+| chrony: synchronisation, offset, stratum, reachable sources, falsetickers, NTS, when the plugin and its privilege are present | `chrony/service/chronytracking`, `chronysources`, `chronyauthdata` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
@@ -127,6 +128,12 @@ else. That is the way to trade coverage against privilege:
   resolver, certificate and lease items stay unsupported. These four areas are the ones to
   drop first if the account has to stay close to read only
 
+`page-services-chrony` (Services: Chrony) is needed only on firewalls that run the os-chrony
+plugin instead of ntpd. It covers `api/chrony/*`, which includes the chrony settings and
+starting and stopping the service, so it is **not** read only. Without it the Chrony discovery
+gets HTTP 403, creates nothing and reports no error; the clock difference to the Zabbix server
+and the service discovery still cover the basics.
+
 `page-nut` is needed only if a UPS is monitored. It comes from the NUT plugin, covers
 `api/nut/*`, and without the privilege the UPS master returns HTTP 403 even after enabling the
 item. On a firewall where the plugin is not installed at all the route does not exist and the
@@ -147,6 +154,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | Macro | Default | Purpose |
 |-------|---------|---------|
 | `{$OPNS.CPU.UTIL.WARN}` | `85` | Processor utilisation counting as high, averaged over ten minutes |
+| `{$OPNS.CHRONY.SOURCES.MIN}` | `2` | Reachable chrony sources below which redundancy counts as lost |
 | `{$OPNS.CPU.LOAD.MAX}` | `2` | Load average counting as high |
 | `{$OPNS.LOAD.AVG5.WARN}` | `4` | Absolute five minute load average counting as high |
 | `{$OPNS.LOAD.PERCORE.WARN}` | `1` | Five minute load per core, 1 means the cores are exactly saturated |
@@ -207,10 +215,11 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| Chrony | synchronisation, offset, sources and NTS of chronyd, only with the os-chrony plugin and the Services: Chrony privilege |
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+63 in total: 2 Disaster, 13 High, 14 Average, 25 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +305,14 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**chrony replaces ntpd on some firewalls.** With the os-chrony plugin ntpd is switched off and
+the NTP items stay unsupported, because `ntpd/service/status` lists no peers. The Chrony
+discovery then takes over, reading `chronyc tracking`, `sources` and `authdata` as text and
+parsing them in preprocessing. It distinguishes what the NTP items cannot: sources that answer
+but are rejected as falsetickers, and NTS sources whose key exchange failed, which chrony then
+ignores. The offset trigger reuses `{$OPNS.NTP.OFFSET.WARN}`. When chronyd stops answering, the
+discovered items are disabled at once and service discovery reports the stopped daemon.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.
