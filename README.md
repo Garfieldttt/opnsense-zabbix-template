@@ -261,9 +261,12 @@ the loss triggers, for gateways that are actually probed; for the others a monit
 0. Earlier the three items existed and discarded the tilde, which left them unsupported for
 good after any outage of the API, because a discarded value never clears an error. While
 monitoring is off, an outage of that gateway raises nothing, because the down trigger works on
-packet loss. That is what the Info trigger is for. Some gateways cannot or should not be probed,
-for example a tunnel peer that does not answer ICMP or, on a CARP master, the shared address
-that only the backup routes through; `{$OPNS.GW.MONITOR.EXPECTED:"<gateway>"}` set to 0 marks
+packet loss. The loss triggers also require the monitored item to read 1, so a loss or down
+problem closes as soon as monitoring is switched off; otherwise it would stay open until the
+undiscovered items are removed an hour later. From then on the Info trigger shows that the
+gateway is unchecked. Some gateways cannot or should not be probed, for example a tunnel peer
+that does not answer ICMP or, on a CARP master, the shared address that only the backup routes
+through; `{$OPNS.GW.MONITOR.EXPECTED:"<gateway>"}` set to 0 marks
 them as unprobed on purpose. The Info trigger only re-evaluates when the monitored item stores
 a value, which it does at least hourly, so a change of the macro shows within the hour.
 
