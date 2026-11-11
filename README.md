@@ -24,7 +24,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+131 items, 16 discovery rules with 75 item prototypes, 60 triggers, 42 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -50,6 +50,7 @@ with 9 pages.
 | Services, discovered and checked | `core/service/search` |
 | Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
+| Installed plugins and packages, with alerts when the set changes | `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
 | Resolver: queries, cache hits and misses, prefetches, rate limited queries, recursion time, request queue | `unbound/diagnostics/stats` |
@@ -210,7 +211,7 @@ answer is HTTP 404, which is why the item ships disabled.
 
 ## Triggers
 
-58 in total: 2 Disaster, 13 High, 13 Average, 21 Warning, 9 Info.
+60 in total: 2 Disaster, 13 High, 13 Average, 23 Warning, 9 Info.
 
 Trigger names carry no product prefix, following the Zabbix guidelines and the community
 template: Zabbix puts the host name in front of the trigger anyway.
@@ -296,6 +297,13 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**Plugin and package changes compare names, not versions.** Both come from the firmware
+information the template already reads every half hour. An update changes versions but rarely
+names, so it raises nothing; installing or removing a plugin does. Packages added from the shell
+change the package set without changing the plugin set or the OPNsense version, which is what
+the second Warning looks for: it depends on the plugin trigger and on Version has changed, so a
+plugin install or a firmware update does not raise it as well.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern.

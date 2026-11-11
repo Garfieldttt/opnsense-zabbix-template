@@ -670,6 +670,130 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
+        - uuid: 3b39a140f449441f9f634d7d5623243f
+          name: 'Plugins: installed'
+          type: DEPENDENT
+          key: opns.plugins.installed
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          description: 'Installed plugins with their versions, one per line.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var p = JSON.parse(value).plugin || [], out = [];
+                  for (var i = 0; i < p.length; i++) {
+                      if (String(p[i].installed) === '1') { out.push(p[i].name + ' ' + p[i].version); }
+                  }
+                  return out.sort().join('\n');
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.raw.product.info
+          tags:
+            - tag: component
+              value: system
+        - uuid: 08c1172b20d94028859fc787e155e670
+          name: 'Plugins: installed names'
+          type: DEPENDENT
+          key: opns.plugins.names
+          delay: '0'
+          history: 30d
+          value_type: TEXT
+          trends: '0'
+          description: 'Names of the installed plugins without versions, so that updates do not count as a change.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var p = JSON.parse(value).plugin || [], out = [];
+                  for (var i = 0; i < p.length; i++) {
+                      if (String(p[i].installed) === '1') { out.push(p[i].name); }
+                  }
+                  return out.sort().join(' ');
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.raw.product.info
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 8fb424a089bd44b0a88e7ed4e5606594
+              expression: 'last(/OPNsense by REST API/opns.plugins.names,#1)<>last(/OPNsense by REST API/opns.plugins.names,#2)'
+              name: 'Plugins were installed or removed'
+              priority: WARNING
+              description: 'The set of installed plugins changed. A plugin adds code that runs as root and often its own API and services; check the item Plugins: installed and that the change was intended.'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: security
+        - uuid: f4b510d73b84412da44f6c55e3cd1510
+          name: 'Packages: installed'
+          type: DEPENDENT
+          key: opns.packages.installed
+          delay: '0'
+          description: 'Number of installed packages, plugins and their dependencies included.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var p = JSON.parse(value)['package'] || [], n = 0;
+                  for (var i = 0; i < p.length; i++) { if (String(p[i].installed) === '1') { n++; } }
+                  return n;
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.raw.product.info
+          tags:
+            - tag: component
+              value: system
+        - uuid: 0b95742cbb0f4dd9861c27316d481b3c
+          name: 'Packages: installed set'
+          type: DEPENDENT
+          key: opns.packages.fingerprint
+          delay: '0'
+          value_type: CHAR
+          trends: '0'
+          description: 'Checksum over the names of the installed packages. Versions are left out, so updates do not change it; adding or removing a package does.'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var p = JSON.parse(value)['package'] || [], names = [];
+                  for (var i = 0; i < p.length; i++) { if (String(p[i].installed) === '1') { names.push(p[i].name); } }
+                  var s = names.sort().join('\n'), h = 0;
+                  for (var c = 0; c < s.length; c++) { h = (h * 31 + s.charCodeAt(c)) & 0xffffffff; }
+                  return (h >>> 0).toString(16) + ' (' + names.length + ')';
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+          master_item:
+            key: opns.raw.product.info
+          tags:
+            - tag: component
+              value: system
+          triggers:
+            - uuid: 1c09cfc018394f579991d3900fbfe2fa
+              expression: 'last(/OPNsense by REST API/opns.packages.fingerprint,#1)<>last(/OPNsense by REST API/opns.packages.fingerprint,#2)'
+              name: 'Installed packages changed outside a plugin install or update'
+              opdata: '{ITEM.LASTVALUE1}'
+              priority: WARNING
+              description: 'Packages were added to or removed from the firewall while neither the plugin set nor the OPNsense version changed. That is what installing software from the shell looks like. The firmware log under System, Firmware, Log files shows what was installed.'
+              manual_close: 'YES'
+              dependencies:
+                - name: 'Plugins were installed or removed'
+                  expression: 'last(/OPNsense by REST API/opns.plugins.names,#1)<>last(/OPNsense by REST API/opns.plugins.names,#2)'
+                - name: 'Version has changed'
+                  expression: 'last(/OPNsense by REST API/opns.version,#1)<>last(/OPNsense by REST API/opns.version,#2)'
+              tags:
+                - tag: scope
+                  value: security
         - uuid: 1f86f6392bec4c38a6a2ad9a8447b835
           name: 'RAW Firmware Status'
           type: HTTP_AGENT
