@@ -5095,7 +5095,7 @@ zabbix_export:
           description: 'Time without a handshake after which a peer of a roaming instance raises an Info problem. Context by peer name.'
         - macro: '{$OPNS.VPN.PEER.SITE.MAXAGE}'
           value: 5m
-          description: 'Time without a handshake after which a site peer (any peer of an instance that is not roaming) raises a High problem. Context by peer name, e.g. {$OPNS.VPN.PEER.SITE.MAXAGE:"Barncroft"}.'
+          description: 'Time without a handshake after which a site peer (any peer of an instance that is not roaming) raises a High problem. Context by peer name, e.g. {$OPNS.VPN.PEER.SITE.MAXAGE:"branch-office"}.'
         - macro: '{$OPNS.VPN.ROAMING.INSTANCE.MATCHES}'
           value: ^$
           description: 'Regex on WireGuard and AmneziaWG instance names whose peers are roaming clients such as phones, e.g. ^Roaming$. Their peers get the relaxed Info alert, and the instances are left out of the idle restart.'

@@ -170,7 +170,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | `{$OPNS.DNS.HITRATIO.MIN}` | `60` | Cache hit ratio in percent below which the resolver is reported as working harder than it should |
 | `{$OPNS.CERT.EXPIRE.DAYS}` | `21d` | Lead time before a certificate expires |
 | `{$OPNS.VPN.IDLE.TIME}` | `10m` | Time without any handshake after which a WireGuard or AmneziaWG instance counts as idle. Context by interface, e.g. `{$OPNS.VPN.IDLE.TIME:"wg1"}` |
-| `{$OPNS.VPN.PEER.SITE.MAXAGE}` | `5m` | Time without a handshake after which a site peer raises a High problem. Context by peer name, e.g. `{$OPNS.VPN.PEER.SITE.MAXAGE:"Barncroft"}` |
+| `{$OPNS.VPN.PEER.SITE.MAXAGE}` | `5m` | Time without a handshake after which a site peer raises a High problem. Context by peer name, e.g. `{$OPNS.VPN.PEER.SITE.MAXAGE:"branch-office"}` |
 | `{$OPNS.VPN.PEER.ROAMING.MAXAGE}` | `30m` | Time without a handshake after which a peer of a roaming instance raises an Info problem. Context by peer name |
 | `{$OPNS.VPN.ACTIVE.TIME}` | `1h` | How long the instance must have been in use before going idle counts as a failure. Context by interface |
 
