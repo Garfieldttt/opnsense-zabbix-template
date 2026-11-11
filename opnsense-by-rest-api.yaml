@@ -3076,6 +3076,7 @@ zabbix_export:
           type: DEPENDENT
           key: opns.gateway.discovery
           lifetime: 1h
+          enabled_lifetime_type: DISABLE_NEVER
           item_prototypes:
             - uuid: 68818cd02e5846bd9f7a82065a86e5fb
               name: 'Gateway Address {#GWSTATUSNAME}'
@@ -3095,7 +3096,7 @@ zabbix_export:
               name: 'Gateway monitored {#GWSTATUSNAME}'
               type: DEPENDENT
               key: 'opns.gw.status.monitored[{#GWSTATUSNAME}]'
-              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed. The loss triggers also require this to be 1, so their problems close as soon as monitoring is switched off instead of staying open until the lost items are removed.'
+              description: '1 while the firewall probes the gateway, 0 when it reports a tilde instead of round trip time, loss and deviation because monitoring is switched off or no monitor address is set. Round trip time, loss and deviation are only discovered for gateways that are probed. The loss triggers also require this to be 1, and the discovery rule keeps lost items and triggers enabled until it removes them after an hour, so an open loss or down problem closes as soon as monitoring is switched off.'
               preprocessing:
                 - type: JSONPATH
                   parameters:
