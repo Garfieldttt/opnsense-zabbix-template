@@ -282,10 +282,13 @@ zabbix_export:
           key: opns.memory.arc
           history: 1d
           units: B
+          description: 'Memory held by the ZFS adaptive replacement cache. A firewall installed on UFS has no ARC and the API leaves the field out, which reads as 0 rather than leaving the item unsupported.'
           preprocessing:
             - type: JSONPATH
               parameters:
                 - $.memory.arc
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
           master_item:
             key: opns.raw.memory.status
         - uuid: b19c177d7b2741598295767c32caf172
