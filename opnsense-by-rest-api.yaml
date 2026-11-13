@@ -212,6 +212,12 @@ zabbix_export:
           tags:
             - tag: component
               value: firewall
+          triggers:
+            - uuid: 8b1ff7160ba34620959dffa8b5eb743b
+              expression: 'nodata(/OPNsense by REST API/opns.fw.states.current,5m)=1'
+              name: 'No data from OPNsense'
+              priority: HIGH
+              description: 'The API has not delivered the state table count for five minutes, so the firewall is unreachable, the API key is rejected or the API itself fails. The trigger sits on this item because it is polled every minute, stores history and comes from the Lobby: Dashboard privilege, which every setup of this template grants. A raw master item cannot carry it: those keep no history, and nodata() refuses to evaluate on an item without history.'
         - uuid: f352bd8c49cf45ba9a987773990ec8f1
           name: 'Firewall states max'
           type: DEPENDENT
@@ -589,12 +595,6 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-          triggers:
-            - uuid: 8b1ff7160ba34620959dffa8b5eb743b
-              expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
-              name: 'No data from OPNsense'
-              priority: HIGH
-              description: 'can''t access the OPNsense API'
         - uuid: 2b7d229bae454019ac1c6e54b0571486
           name: 'RAW Carp Interfaces'
           type: HTTP_AGENT
@@ -1983,10 +1983,14 @@ zabbix_export:
                       if ((Number(r.evaluations) || 0) === 0) { unused++; }
                   }
                   // order independent checksum over the rule texts, so a reordered ruleset still reads as a
-                  // change while an unchanged one keeps its fingerprint
+                  // change while an unchanged one keeps its fingerprint. pf prints every interface
+                  // address in a rule with the number of addresses it currently resolves to, as in
+                  // (self:7) or (vtnet1:network:1). That number moves whenever an interface gains or
+                  // loses an address, IPv6 privacy addresses included, without any rule changing, so
+                  // it is removed before hashing.
                   var h = 0;
                   for (var j = 0; j < names.length; j++) {
-                      var s = names[j], k = 0;
+                      var s = names[j].replace(/:\d+\)/g, ')'), k = 0;
                       for (var c = 0; c < s.length; c++) { k = (k * 31 + s.charCodeAt(c)) & 0xffffffff; }
                       h = (h ^ k) >>> 0;
                   }
@@ -3192,7 +3196,7 @@ zabbix_export:
               description: 'The gateway has no monitor address, so the firewall never probes it and reports a tilde instead of round trip time, loss and deviation. It also reports the gateway as Online, which says nothing about reachability. While this is the case an outage of this gateway raises nothing, because the down trigger works on packet loss. Set a monitor address under System, Gateways, Single, or accept that this gateway is not checked: https://docs.opnsense.org/manual/gateways.html'
               dependencies:
                 - name: 'No data from OPNsense'
-                  expression: 'nodata(/OPNsense by REST API/opns.raw.gateway.status,5m)=1'
+                  expression: 'nodata(/OPNsense by REST API/opns.fw.states.current,5m)=1'
           master_item:
             key: opns.raw.gateway.status
           lld_macro_paths:

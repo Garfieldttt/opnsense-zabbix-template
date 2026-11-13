@@ -113,7 +113,7 @@ read.
 | Status: Services | `page-status-services` | service run state | **no**, `api/core/service/*` permits starting and stopping services |
 | System: Firmware | `page-system-firmware-manualupdate` | firmware state, pending updates, business license, version | **no**, `api/core/firmware/*` also covers reboot, poweroff, install and remove |
 | Services: Unbound | `page-services-unbound` | resolver statistics | **no**, `api/unbound/*` covers the whole resolver configuration |
-| System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates |
+| System: Certificate Manager | `page-system-certmanager` | certificate validity | **no**, `api/trust/cert/*` covers adding and removing certificates and exports the private key of every certificate through `generate_file` |
 | Services: DHCP: Kea(v4) and Kea(v6) | `page-dhcp-kea-v4`, `page-dhcp-kea-v6` | DHCP lease counters | **no**, the patterns cover the Kea configuration and service control |
 
 Leaving one out costs exactly the items it feeds, which then stay unsupported, and nothing
