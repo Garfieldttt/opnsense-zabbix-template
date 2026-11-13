@@ -365,8 +365,8 @@ zabbix_export:
           triggers:
             - uuid: 9aa531a694664a4996fb9f698c99e49a
               expression: 'last(/OPNsense by REST API/opns.product.licenseuntil)>0 and (last(/OPNsense by REST API/opns.product.licenseuntil) - now()) / 86400 < {$OPNS.LICENSE.EXPIRY.WARN}'
-              name: 'OPNSense Business License expires soon'
-              event_name: 'OPNSense Business License expires soon (less than {$OPNS.LICENSE.EXPIRY.WARN} days)'
+              name: 'Business license expires soon'
+              event_name: 'Business license expires soon (less than {$OPNS.LICENSE.EXPIRY.WARN} days)'
               priority: AVERAGE
         - uuid: a22f470c7998453a8f7f0cf78cb7604f
           name: 'Firmware update count'
@@ -452,14 +452,14 @@ zabbix_export:
           triggers:
             - uuid: 0d5af49f432a4819b1ac0d3d7d170dde
               expression: 'find(/OPNsense by REST API/opns.firmware.update.status,#1,"regexp","^(update|upgrade)$")=1 and last(/OPNsense by REST API/opns.firmware.update.count)>0'
-              name: 'OPNsense firmware updates are available'
-              event_name: 'OPNsense firmware updates are available ({ITEM.LASTVALUE})'
+              name: 'Firmware updates are available'
+              event_name: 'Firmware updates are available ({ITEM.LASTVALUE})'
               opdata: 'Updates: {ITEM.LASTVALUE2}'
               priority: INFO
               description: 'A firmware update or major upgrade is available.'
             - uuid: 48d9315e40784037bfabc1a507a6db6e
               expression: 'find(/OPNsense by REST API/opns.firmware.update.status,#1,"eq","error")=1'
-              name: 'OPNsense firmware update check failed'
+              name: 'Firmware update check failed'
               opdata: '{ITEM.LASTVALUE}'
               priority: WARNING
               description: 'The OPNsense firmware update check returned an error.'
@@ -540,7 +540,7 @@ zabbix_export:
             - tag: component
               value: raw
         - uuid: 1e05c03ad3b94bda80a179a98cd5781c
-          name: 'RAW Firewallaction'
+          name: 'RAW Firewall action'
           type: HTTP_AGENT
           key: opns.raw.fw.action
           history: '0'
@@ -579,7 +579,7 @@ zabbix_export:
             - tag: component
               value: raw
         - uuid: 85e135e5dc174a53816cd18789a7f684
-          name: 'RAW Gatewaystatus'
+          name: 'RAW Gateway status'
           type: HTTP_AGENT
           key: opns.raw.gateway.status
           history: '0'
@@ -643,7 +643,7 @@ zabbix_export:
             - tag: component
               value: raw
         - uuid: 8b36f82be3304f9db115b3248244968c
-          name: 'RAW Memorystatus'
+          name: 'RAW Memory status'
           type: HTTP_AGENT
           key: opns.raw.memory.status
           delay: 5m
@@ -2963,8 +2963,8 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 67f455afd96d4e8fad5ea887bc98d6c4
                   expression: 'min(/OPNsense by REST API/opns.disk.size[{#FSNAME},pused],5m)>{$OPNS.FS.PUSED.MAX.CRIT:"{#FSNAME}"}'
-                  name: 'OPNsense: FS [{#FSNAME}]: Space is critically low'
-                  event_name: 'OPNsense: FS [{#FSNAME}]: Space is critically low (used > {$OPNS.FS.PUSED.MAX.CRIT:"{#FSNAME}"}%, total {{?last(//opns.disk.size[{#FSNAME},total])/1024/1024/1024}.fmtnum(1)}GB)'
+                  name: 'FS [{#FSNAME}]: Space is critically low'
+                  event_name: 'FS [{#FSNAME}]: Space is critically low (used > {$OPNS.FS.PUSED.MAX.CRIT:"{#FSNAME}"}%, total {{?last(//opns.disk.size[{#FSNAME},total])/1024/1024/1024}.fmtnum(1)}GB)'
                   opdata: 'Space used: {{ITEM.LASTVALUE1}.fmtnum(1)}%'
                   priority: AVERAGE
                   description: |
@@ -2979,8 +2979,8 @@ zabbix_export:
                       value: capacity
                 - uuid: 74ebfeae491b46f29141a51e84b66715
                   expression: 'min(/OPNsense by REST API/opns.disk.size[{#FSNAME},pused],5m)>{$OPNS.FS.PUSED.MAX.WARN:"{#FSNAME}"}'
-                  name: 'OPNsense: FS [{#FSNAME}]: Space is low'
-                  event_name: 'OPNsense: FS [{#FSNAME}]: Space is low (used > {$OPNS.FS.PUSED.MAX.WARN:"{#FSNAME}"}%, total {{?last(//opns.disk.size[{#FSNAME},total])/1024/1024/1024}.fmtnum(1)}GB)'
+                  name: 'FS [{#FSNAME}]: Space is low'
+                  event_name: 'FS [{#FSNAME}]: Space is low (used > {$OPNS.FS.PUSED.MAX.WARN:"{#FSNAME}"}%, total {{?last(//opns.disk.size[{#FSNAME},total])/1024/1024/1024}.fmtnum(1)}GB)'
                   opdata: 'Space used: {{ITEM.LASTVALUE1}.fmtnum(1)}%'
                   priority: WARNING
                   description: |
@@ -2988,7 +2988,7 @@ zabbix_export:
                     The trigger expression is based on the current used and maximum available spaces.
                     Event name represents the total volume space, which can differ from the maximum available space, depending on the filesystem type.
                   dependencies:
-                    - name: 'OPNsense: FS [{#FSNAME}]: Space is critically low'
+                    - name: 'FS [{#FSNAME}]: Space is critically low'
                       expression: 'min(/OPNsense by REST API/opns.disk.size[{#FSNAME},pused],5m)>{$OPNS.FS.PUSED.MAX.CRIT:"{#FSNAME}"}'
                   tags:
                     - tag: scope
@@ -3063,7 +3063,7 @@ zabbix_export:
                   value: firewall
           graph_prototypes:
             - uuid: 79936004c84e4b8db3ba29b07fdfe4e2
-              name: 'OPNSense Action Graph  {#FWACTION}'
+              name: 'Firewall action {#FWACTION}'
               graph_items:
                 - color: 199C0D
                   calc_fnc: MIN
@@ -3998,10 +3998,10 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: 4901a5da4fbe4973b908eae879819004
                   expression: 'find(/OPNsense by REST API/opn.ipsecph1.connected[{#IPSECDESC}],,"like","true")=0'
-                  name: 'IPSec Tunnel {#IPSECDESC} is not connected'
+                  name: 'IPsec tunnel {#IPSECDESC} is not connected'
                   priority: HIGH
             - uuid: f8cdbb97fc6446eea7bacad4533365e8
-              name: '{#IPSECDESC} lcoaladdress'
+              name: '{#IPSECDESC} local address'
               type: DEPENDENT
               key: 'opn.ipsecph1.localaddress[{#IPSECDESC}]'
               value_type: TEXT
@@ -4237,7 +4237,7 @@ zabbix_export:
           trigger_prototypes:
             - uuid: e3c1e5471d9d470e9fcaddb99642d98b
               expression: '(change(/OPNsense by REST API/opn.ipsecph1.bytes.out.total[{#IPSECDESC}])=0 or change(/OPNsense by REST API/opn.ipsecph1.bytes.in.total[{#IPSECDESC}])=0) and find(/OPNsense by REST API/opn.ipsecph1.connected[{#IPSECDESC}],,"like","connected")=1'
-              name: 'IPSec Tunnel {#IPSECDESC} no traffic'
+              name: 'IPsec tunnel {#IPSECDESC} no traffic'
               priority: WARNING
           master_item:
             key: opns.ipsec.phase1.raw

@@ -21,6 +21,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 - [Dashboard](#dashboard)
 - [Notes](#notes)
 - [License](#license)
+- [Screenshots](#screenshots)
 
 ## What it monitors
 
@@ -298,7 +299,11 @@ defined CARP interfaces.", which is the normal answer for a single firewall, so 
 rule takes the empty list.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
-of every rule, and rule changes are not a per minute concern.
+of every rule, and rule changes are not a per minute concern. The fingerprint is taken over
+the rule texts with one part removed: pf prints every interface address in a rule together
+with the number of addresses it currently resolves to, as in `(self:7)`. That number moves
+whenever an interface gains or loses an address, IPv6 privacy addresses included, and kept in
+the hash it made the ruleset look changed about once an hour while no rule had been touched.
 
 **An OpenVPN server disappears behind its own clients.** `search_sessions` answers with one
 flat list, and a running server that has clients connected is represented by those clients
@@ -325,12 +330,10 @@ not been seen is a real tunnel carrying a real client.
 MIT. The template is derived from the Zabbix community template `OPNsense by HTTP-JSON`
 (MIT, Copyright 2021 Zabbix), with the greater part of the current content added on top.
 
-##Screenshots:
+## Screenshots
+
 <img width="3537" height="2151" alt="image" src="https://github.com/user-attachments/assets/dbf56df3-f940-4e6b-a916-604d9cc8a661" />
 <img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/ab65ad58-a1a5-4b29-84f4-76d1701e3217" />
 <img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/25229450-53b2-4c92-982d-e1354d8a7ed5" />
 <img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/273514d2-af03-47c1-8fa0-9fd7b6af1ab2" />
 <img width="3504" height="1788" alt="image" src="https://github.com/user-attachments/assets/ceee70d7-6d14-4b1d-b90f-b42fcdac2bd4" />
-
-
-
