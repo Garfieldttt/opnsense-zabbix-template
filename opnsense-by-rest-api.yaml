@@ -19,6 +19,15 @@ zabbix_export:
 
         Import into Zabbix 7.0 or later.
 
+        Quick setup:
+        1. In OPNsense under System, Access, Users, create a user without a login shell, give it
+           the privileges listed in the README and add an API key. The download holds the key
+           and the secret.
+        2. Create a host with an agent interface carrying the firewall address and link this
+           template.
+        3. On the host, set {$OPNS.KEY} to the API key, {$OPNS.SECRET} to the API secret and,
+           if the web interface does not listen on 443, {$OPNS.PORT} to its port.
+
         Covers processor utilisation split into user, system and interrupt, memory, kernel
         network memory and mbuf clusters, netisr queues, swap, temperature, load average and
         core count, the pf state and source tracking tables with their limits, pf counters,
@@ -30,12 +39,15 @@ zabbix_export:
         addresses, IPsec tunnels, WireGuard peers, OpenVPN instances and the clients connected to
         them are discovered.
 
-        The monitoring account needs ten privileges. Eight are read only; the README states
-        what the other two permit and how to do without them.
+        The monitoring account needs up to twenty privileges. Ten only read; the README states
+        what the others permit and which ones to leave out to stay close to read only.
 
         Derived from the Zabbix community template "OPNsense by HTTP-JSON", MIT licensed,
         Copyright (c) 2021 Zabbix, with the greater part of the current content added on
         top.
+      vendor:
+        name: Garfieldttt
+        version: 7.0-1
       groups:
         - name: 'Templates/Network devices'
         - name: 'Templates/Operating systems'
