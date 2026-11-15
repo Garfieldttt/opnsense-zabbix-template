@@ -666,6 +666,8 @@ zabbix_export:
           authtype: BASIC
           username: '{$OPNS.KEY}'
           password: '{$OPNS.SECRET}'
+          description: 'Master item. Product info from core/firmware/info. The answer lists every package, about 400 KB, and took three seconds or more on small firewalls, so the default item timeout cut it off and left every item built on it, such as the version and the license, unsupported, hence the longer timeout.'
+          timeout: 30s
           url: 'https://{HOST.IP}:{$OPNS.PORT}/api/core/firmware/info'
           tags:
             - tag: component
