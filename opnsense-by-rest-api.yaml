@@ -1352,130 +1352,6 @@ zabbix_export:
           tags:
             - tag: component
               value: raw
-        - uuid: 856c563ec269469d9db02822226ae56f
-          name: 'NTP: Offset of the selected peer'
-          type: DEPENDENT
-          key: opns.ntp.offset
-          delay: '0'
-          value_type: FLOAT
-          units: ms
-          description: How far the local clock sits from the peer it is currently steering by. A drifting firewall clock breaks IPsec, certificate validation and the correlation of its own logs, and it does so without any other symptom.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.rows[?(@.status == "*" || @.status == "o")].offset.first()
-            - type: LTRIM
-              parameters:
-                - +
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
-          master_item:
-            key: opns.ntp.raw
-          tags:
-            - tag: component
-              value: system
-          triggers:
-            - uuid: 9cfabe6d7b474088af479d1fcbb399ba
-              expression: abs(last(/OPNsense by REST API/opns.ntp.offset))>{$OPNS.NTP.OFFSET.WARN}
-              name: Clock offset is high
-              priority: WARNING
-              description: The local clock has drifted away from its time source. Check reachability of the configured servers.
-              manual_close: 'YES'
-              tags:
-                - tag: scope
-                  value: notice
-        - uuid: 3023f9b23bf64a17bab519fc92bdae44
-          name: 'NTP: Reachable peers'
-          type: DEPENDENT
-          key: opns.ntp.peers.reachable
-          delay: '0'
-          description: Configured time sources that have answered recently. Pool placeholders are excluded, they are not servers but slots the daemon still has to fill.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.rows[?(@.reach != "0")].length()
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
-          master_item:
-            key: opns.ntp.raw
-          tags:
-            - tag: component
-              value: system
-        - uuid: 459e6362615548df981382c9722f2526
-          name: 'OPNsense: NTP peers (raw)'
-          type: HTTP_AGENT
-          key: opns.ntp.raw
-          delay: 5m
-          history: '0'
-          value_type: TEXT
-          trends: '0'
-          authtype: BASIC
-          username: '{$OPNS.KEY}'
-          password: '{$OPNS.SECRET}'
-          description: Peer list of the time daemon with selection state, stratum, reach, offset and jitter.
-          timeout: 10s
-          url: https://{HOST.IP}:{$OPNS.PORT}/api/ntpd/service/status
-          tags:
-            - tag: component
-              value: raw
-        - uuid: 4d091f2b85ae4531858498fb09322738
-          name: 'NTP: Stratum of the selected peer'
-          type: DEPENDENT
-          key: opns.ntp.stratum
-          delay: '0'
-          description: Distance of the chosen source from a reference clock. A stratum of 16 means the daemon is not synchronised at all.
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.rows[?(@.status == "*" || @.status == "o")].stratum.first()
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 1h
-          master_item:
-            key: opns.ntp.raw
-          tags:
-            - tag: component
-              value: system
-        - uuid: 0645e61723774f1384f84c28dffd74a2
-          name: 'NTP: Synchronised'
-          type: DEPENDENT
-          key: opns.ntp.synced
-          delay: '0'
-          valuemap:
-            name: NTP sync state
-          description: 'Whether the daemon has settled on a time source. Unsynchronised is the state that matters: the clock then follows nothing and drifts freely.'
-          preprocessing:
-            - type: JSONPATH
-              parameters:
-                - $.rows[?(@.status == "*" || @.status == "o")].status.first()
-            - type: STR_REPLACE
-              parameters:
-                - '*'
-                - '1'
-            - type: STR_REPLACE
-              parameters:
-                - o
-                - '1'
-            - type: DISCARD_UNCHANGED_HEARTBEAT
-              parameters:
-                - 15m
-          master_item:
-            key: opns.ntp.raw
-          tags:
-            - tag: component
-              value: system
-          triggers:
-            - uuid: 1b6f07b78b804b6499745caf77ed0395
-              expression: min(/OPNsense by REST API/opns.ntp.synced,30m)=0
-              name: Clock is not synchronised
-              priority: WARNING
-              description: No time source has been selected for half an hour. Right after a boot this is normal for a few minutes, beyond that the configured servers are unreachable or refusing.
-              manual_close: 'YES'
-              tags:
-                - tag: scope
-                  value: notice
         - uuid: 919a48795c78468aa88733d44155207c
           name: 'OpenVPN: sessions (raw)'
           type: HTTP_AGENT
@@ -4915,6 +4791,155 @@ zabbix_export:
               path: $.device
             - lld_macro: '{#TYPE}'
               path: $.type
+        - uuid: 1667b8651f0c4a5fbb8e7a41ebdda1e2
+          name: NTP daemon
+          type: DEPENDENT
+          key: opns.ntp.discovery
+          delay: '0'
+          enabled_lifetime_type: DISABLE_IMMEDIATELY
+          description: 'Creates the ntpd items where ntpd is a configured service. Where chrony or no time daemon runs, ntpd is not in the services list, nothing is discovered and nothing is polled: ntpd/service/status would wait about 20 seconds there and answer an empty peer list. Items left behind when ntpd goes away stop polling at once and are deleted after the lifetime.'
+          item_prototypes:
+            - uuid: 856c563ec269469d9db02822226ae56f
+              name: 'NTP: Offset of the selected peer'
+              type: DEPENDENT
+              key: opns.ntp.offset[{#NTPD}]
+              delay: '0'
+              value_type: FLOAT
+              units: ms
+              description: How far the local clock sits from the peer it is currently steering by. A drifting firewall clock breaks IPsec, certificate validation and the correlation of its own logs, and it does so without any other symptom.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.rows[?(@.status == "*" || @.status == "o")].offset.first()
+                - type: LTRIM
+                  parameters:
+                    - +
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.ntp.raw[{#NTPD}]
+              tags:
+                - tag: component
+                  value: system
+              trigger_prototypes:
+                - uuid: 9cfabe6d7b474088af479d1fcbb399ba
+                  expression: abs(last(/OPNsense by REST API/opns.ntp.offset[{#NTPD}]))>{$OPNS.NTP.OFFSET.WARN}
+                  name: Clock offset is high
+                  priority: WARNING
+                  description: The local clock has drifted away from its time source. Check reachability of the configured servers.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+            - uuid: 3023f9b23bf64a17bab519fc92bdae44
+              name: 'NTP: Reachable peers'
+              type: DEPENDENT
+              key: opns.ntp.peers.reachable[{#NTPD}]
+              delay: '0'
+              description: Configured time sources that have answered recently. Pool placeholders are excluded, they are not servers but slots the daemon still has to fill.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.rows[?(@.reach != "0")].length()
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.ntp.raw[{#NTPD}]
+              tags:
+                - tag: component
+                  value: system
+            - uuid: 459e6362615548df981382c9722f2526
+              name: 'OPNsense: NTP peers (raw)'
+              type: HTTP_AGENT
+              key: opns.ntp.raw[{#NTPD}]
+              delay: 5m
+              history: '0'
+              value_type: TEXT
+              trends: '0'
+              authtype: BASIC
+              username: '{$OPNS.KEY}'
+              password: '{$OPNS.SECRET}'
+              description: 'Peer list of ntpd with selection state, stratum, reach, offset and jitter. Created by the NTP daemon rule only where ntpd is a configured service: with chrony in its place the endpoint waits about 20 seconds and then returns an empty list.'
+              timeout: 10s
+              url: https://{HOST.IP}:{$OPNS.PORT}/api/ntpd/service/status
+              tags:
+                - tag: component
+                  value: raw
+            - uuid: 4d091f2b85ae4531858498fb09322738
+              name: 'NTP: Stratum of the selected peer'
+              type: DEPENDENT
+              key: opns.ntp.stratum[{#NTPD}]
+              delay: '0'
+              description: Distance of the chosen source from a reference clock. A stratum of 16 means the daemon is not synchronised at all.
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.rows[?(@.status == "*" || @.status == "o")].stratum.first()
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: opns.ntp.raw[{#NTPD}]
+              tags:
+                - tag: component
+                  value: system
+            - uuid: 0645e61723774f1384f84c28dffd74a2
+              name: 'NTP: Synchronised'
+              type: DEPENDENT
+              key: opns.ntp.synced[{#NTPD}]
+              delay: '0'
+              valuemap:
+                name: NTP sync state
+              description: 'Whether the daemon has settled on a time source. Unsynchronised is the state that matters: the clock then follows nothing and drifts freely.'
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.rows[?(@.status == "*" || @.status == "o")].status.first()
+                - type: STR_REPLACE
+                  parameters:
+                    - '*'
+                    - '1'
+                - type: STR_REPLACE
+                  parameters:
+                    - o
+                    - '1'
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 15m
+              master_item:
+                key: opns.ntp.raw[{#NTPD}]
+              tags:
+                - tag: component
+                  value: system
+              trigger_prototypes:
+                - uuid: 1b6f07b78b804b6499745caf77ed0395
+                  expression: min(/OPNsense by REST API/opns.ntp.synced[{#NTPD}],30m)=0
+                  name: Clock is not synchronised
+                  priority: WARNING
+                  description: No time source has been selected for half an hour. Right after a boot this is normal for a few minutes, beyond that the configured servers are unreachable or refusing.
+                  manual_close: 'YES'
+                  tags:
+                    - tag: scope
+                      value: notice
+          master_item:
+            key: opns.services.raw
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // One entry when ntpd is in the services list, none otherwise.
+                  var d = JSON.parse(value), rows = (d && d.rows) || [];
+                  for (var i = 0; i < rows.length; i++) {
+                      if (rows[i].id === 'ntpd' || rows[i].name === 'ntpd') {
+                          return JSON.stringify([{'{#NTPD}': 'ntpd'}]);
+                      }
+                  }
+                  return JSON.stringify([]);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
       macros:
         - macro: '{$OPNS.CPU.LOAD.MAX}'
           value: '2'
@@ -7227,77 +7252,81 @@ zabbix_export:
                     - type: STRING
                       name: thresholds.1.threshold
                       value: '1'
-                - type: item
+                - type: honeycomb
                   name: Clock synchronised
                   'y': '5'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.ntp.synced
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: 'NTP: Synchronised'
+                    - type: STRING
+                      name: primary_label
+                      value: 'Clock synchronised'
+                    - type: STRING
+                      name: reference
+                      value: NTPSY
+                    - type: STRING
+                      name: thresholds.0.color
+                      value: E53935
+                    - type: STRING
+                      name: thresholds.0.threshold
+                      value: '0'
+                    - type: STRING
+                      name: thresholds.1.color
+                      value: 069C56
+                    - type: STRING
+                      name: thresholds.1.threshold
+                      value: '1'
+                - type: honeycomb
                   name: Clock offset
                   x: '12'
                   'y': '5'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.ntp.offset
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: 'NTP: Offset of the selected peer'
+                    - type: STRING
+                      name: primary_label
+                      value: 'Clock offset'
+                    - type: STRING
+                      name: reference
+                      value: NTPCO
+                - type: honeycomb
                   name: Stratum
                   x: '24'
                   'y': '5'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.ntp.stratum
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
-                - type: item
+                    - type: STRING
+                      name: items.0
+                      value: 'NTP: Stratum of the selected peer'
+                    - type: STRING
+                      name: primary_label
+                      value: 'Stratum'
+                    - type: STRING
+                      name: reference
+                      value: NTPST
+                - type: honeycomb
                   name: Reachable peers
                   x: '36'
                   'y': '5'
                   width: '12'
                   height: '3'
                   fields:
-                    - type: ITEM
-                      name: itemid.0
-                      value:
-                        host: OPNsense by REST API
-                        key: opns.ntp.peers.reachable
-                    - type: INTEGER
-                      name: show.1
-                      value: '2'
-                    - type: INTEGER
-                      name: show.2
-                      value: '3'
+                    - type: STRING
+                      name: items.0
+                      value: 'NTP: Reachable peers'
+                    - type: STRING
+                      name: primary_label
+                      value: 'Reachable peers'
+                    - type: STRING
+                      name: reference
+                      value: NTPRP
                 - type: item
                   name: CARP demotion
                   x: '48'
