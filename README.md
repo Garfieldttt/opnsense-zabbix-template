@@ -25,7 +25,7 @@ expected, that is written down in [Notes](#notes) rather than smoothed over.
 
 ## What it monitors
 
-127 items, 16 discovery rules with 75 item prototypes, 58 triggers, 42 macros and a dashboard
+122 items, 17 discovery rules with 80 item prototypes, 58 triggers, 42 macros and a dashboard
 with 9 pages.
 
 | Area | Source endpoint |
@@ -49,7 +49,7 @@ with 9 pages.
 | WireGuard instances and peers | `wireguard/service/show` |
 | OpenVPN instances and clients | `openvpn/service/search_sessions` |
 | Services, discovered and checked | `core/service/search` |
-| Clock synchronisation, offset, stratum, reachable peers | `ntpd/service/status` |
+| Clock synchronisation, offset, stratum, reachable peers, where ntpd is the time daemon | `ntpd/service/status` |
 | Firmware state, pending updates, business license, version | `core/firmware/status`, `core/firmware/info` |
 | Configuration change timestamp, uptime | `diagnostics/system/system_time` |
 | UPS, battery, load, runtime, voltage | `nut/diagnostics/upsstatus` |
@@ -208,6 +208,7 @@ answer is HTTP 404, which is why the item ships disabled.
 | OpenVPN instances | servers and clients, their state and the number of connected clients |
 | OpenVPN sessions | one entry per connected client, named after the client |
 | Certificates | validity per certificate in the trust store |
+| NTP daemon | clock synchronisation, offset, stratum and reachable peers, only where ntpd is a configured service |
 
 ## Triggers
 
@@ -297,6 +298,14 @@ looking at yesterday's raw response in Latest data.
 `get_vip_status` answers with an empty `rows` list and the message "Could not locate any
 defined CARP interfaces.", which is the normal answer for a single firewall, so the discovery
 rule takes the empty list.
+
+**The ntpd items are discovered.** Where chrony (os-chrony) or no time daemon replaces ntpd,
+`ntpd/service/status` waits about 20 seconds for `ntpq` and then answers an empty peer list:
+with a normal timeout the raw item is unsupported, with a longer one "Clock is not synchronised"
+would fire. The NTP daemon rule reads the services list, which names ntpd only where it is
+configured, and creates the ntpd items and their two triggers only there. When upgrading, the
+item keys gain `[ntpd]`, so the history of the old items is not carried over. The dashboard
+widgets find the items by name.
 
 **The pf ruleset item** polls every ten minutes on purpose. The response carries the full text
 of every rule, and rule changes are not a per minute concern. The fingerprint is taken over
